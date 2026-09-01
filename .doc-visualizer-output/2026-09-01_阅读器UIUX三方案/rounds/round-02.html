@@ -1,0 +1,1234 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>阅读器 UI/UX 三方案 · 评审草图 R1</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak]{display:none!important}
+    .book-serif{font-family:"Noto Serif SC","Songti SC","SimSun",Georgia,serif}
+    /* 圈选编号徽章 */
+    .cal{position:absolute;top:-9px;left:-9px;z-index:30;width:20px;height:20px;border-radius:9999px;
+         background:#2563eb;color:#fff;font-size:11px;line-height:20px;text-align:center;font-weight:700;
+         box-shadow:0 1px 4px rgba(0,0,0,.3)}
+    .cal-b{background:#7c3aed}
+    .cal-c{background:#059669}
+    /* 手绘圈选框 */
+    .scribble{border:2.5px solid #ef4444;border-radius:62% 38% 58% 42% / 55% 68% 32% 45%;
+              padding:1px 6px;box-decoration-break:clone;-webkit-box-decoration-break:clone}
+    .scribble-g{border-color:#059669}
+    /* 毛玻璃浮卡 */
+    .glass{background:rgba(255,255,255,.88);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+    /* 图解动画：供给曲线左移，均衡点移动 */
+    @keyframes eqshift{0%,15%{transform:translate(0,0)}55%,85%{transform:translate(-11px,-6px)}100%{transform:translate(0,0)}}
+    .eq-move{animation:eqshift 5s ease-in-out infinite}
+    @keyframes fadein2{0%,15%{opacity:0}55%,85%{opacity:1}100%{opacity:0}}
+    .s1-blink{animation:fadein2 5s ease-in-out infinite}
+    @keyframes eqbig{0%,15%{transform:translate(0,0)}55%,85%{transform:translate(-17px,-8px)}100%{transform:translate(0,0)}}
+    .eq-move-big{animation:eqbig 5s ease-in-out infinite}
+    /* 图解动画：需求曲线上的点滑动（弹性） */
+    @keyframes slidey{0%,20%{transform:translate(0,0)}60%,85%{transform:translate(8.8px,24px)}100%{transform:translate(0,0)}}
+    .eq-slide{animation:slidey 5s ease-in-out infinite}
+    /* 原文高亮闪烁（方案B 引用回跳示意） */
+    @keyframes flashbg{0%,30%{background:transparent}45%,75%{background:#fde68a}100%{background:transparent}}
+    .flash-hl{animation:flashbg 5s ease-in-out infinite}
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen pb-28">
+
+  <!-- ============ Hero ============ -->
+  <header class="bg-gradient-to-r from-slate-900 to-slate-700 text-white px-6 py-8">
+    <div class="max-w-5xl mx-auto">
+      <p class="text-slate-400 text-sm mb-1">2026-09-01 · 基于《2026-08-31_agent辅助阅读器》（架构已定稿，4 轮评审）</p>
+      <h1 class="text-2xl font-bold mb-2">阅读器 UI/UX 三方案 · 评审草图</h1>
+      <p class="text-slate-300 max-w-3xl">架构定了"里面怎么运转"，这份草图定"你看到的书页周围长什么样"。第 2 轮：方向已拍板为<b class="text-white">混搭——A 纸感书桌为底 + C 的剧场放大 + 默认关闭的对话抽屉</b>，合成设计见"已定方向"标签；只剩 1 个开放点（D4 对话抽屉形态）。</p>
+      <div class="flex flex-wrap gap-2 mt-4">
+        <span class="bg-white/10 rounded-full px-3 py-1 text-sm">3 个方案</span>
+        <span class="bg-blue-500/30 rounded-full px-3 py-1 text-sm">10 条 UI 硬性要求（共同底线）</span>
+        <span class="bg-emerald-500/30 rounded-full px-3 py-1 text-sm">D1~D3 已拍板 ✅</span>
+        <span class="bg-emerald-500/30 rounded-full px-3 py-1 text-sm">Q1/Q2 已回答 ✅</span>
+        <span class="bg-amber-500/30 rounded-full px-3 py-1 text-sm">剩 1 个决策待定（D4）</span>
+        <span class="bg-amber-500/30 rounded-full px-3 py-1 text-sm">评审中 · 第 2 轮</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ 主体 ============ -->
+  <main class="max-w-5xl mx-auto px-4 py-8" x-data="{tab:'overview'}">
+
+    <!-- 标签导航 -->
+    <div class="flex gap-1 border-b mb-6 overflow-x-auto">
+      <button @click="tab='overview'"
+        :class="tab==='overview'?'border-b-2 border-blue-600 text-blue-600':'text-gray-600'"
+        class="px-4 py-2 text-sm font-medium whitespace-nowrap">概览</button>
+      <button @click="tab='final'"
+        :class="tab==='final'?'border-b-2 border-emerald-600 text-emerald-700':'text-gray-600'"
+        class="px-4 py-2 text-sm font-medium whitespace-nowrap">已定方向 ⭐<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='pa'"
+        :class="tab==='pa'?'border-b-2 border-purple-600 text-purple-700':'text-gray-600'"
+        class="px-4 py-2 text-sm font-medium whitespace-nowrap">方案 A · 纸感书桌<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='pb'"
+        :class="tab==='pb'?'border-b-2 border-blue-600 text-blue-700':'text-gray-600'"
+        class="px-4 py-2 text-sm font-medium whitespace-nowrap">方案 B · 双栏工作台<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='pc'"
+        :class="tab==='pc'?'border-b-2 border-emerald-600 text-emerald-700':'text-gray-600'"
+        class="px-4 py-2 text-sm font-medium whitespace-nowrap">方案 C · 沉浸浮层<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='compare'"
+        :class="tab==='compare'?'border-b-2 border-blue-600 text-blue-600':'text-gray-600'"
+        class="px-4 py-2 text-sm font-medium whitespace-nowrap">三案对比<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='decisions'"
+        :class="tab==='decisions'?'border-b-2 border-amber-600 text-amber-700':'text-gray-600'"
+        class="px-4 py-2 text-sm font-medium whitespace-nowrap">待定决策 🔶<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='history'"
+        :class="tab==='history'?'border-b-2 border-blue-600 text-blue-600':'text-gray-600'"
+        class="px-4 py-2 text-sm font-medium whitespace-nowrap">迭代记录</button>
+    </div>
+
+    <!-- ===================== 概览 ===================== -->
+    <div x-show="tab==='overview'" x-cloak class="space-y-6">
+
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 class="font-semibold text-lg mb-2">这个页面在评审什么、不评审什么</h2>
+        <p class="text-sm text-gray-700">《Agent 辅助阅读器》的架构设计<a class="text-blue-600 underline decoration-dotted" href="../2026-08-31_agent辅助阅读器.html">已定稿</a>：四层结构、里程碑 M0~M3、6 个决策都已拍板，不再动。<b>这份草图只管一件事——交互层（读者真正看到的界面）长什么样。</b></p>
+        <p class="text-sm text-gray-700 mt-2">下面三个方案是三种完整的界面思路，每个都画了示意界面（书页怎么摆、圈选怎么触发、AI 卡片出现在哪）、拆了核心动线、列了优缺点。看的时候建议带着一个问题：<b>"读经济学书的时候，我希望 AI 以什么姿态出现在我旁边？"</b></p>
+      </div>
+
+      <!-- 三方案一览 -->
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="bg-white border-2 border-purple-200 rounded-xl p-4 flex flex-col">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="font-mono bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-sm font-bold">A</span>
+            <span class="font-semibold">纸感书桌</span>
+          </div>
+          <div class="rounded-lg bg-purple-50 p-3 mb-3 h-24 relative overflow-hidden">
+            <div class="absolute left-3 top-2 bottom-2 w-16 bg-white border border-purple-200 rounded shadow-sm p-1.5">
+              <div class="h-1 bg-gray-200 rounded mb-1"></div><div class="h-1 bg-gray-200 rounded mb-1 w-4/5"></div><div class="h-1 bg-gray-200 rounded mb-1"></div><div class="h-1 bg-gray-200 rounded w-3/5"></div>
+            </div>
+            <div class="absolute right-2 top-3 w-14 h-16 bg-amber-100 border border-amber-300 rounded shadow rotate-3 p-1">
+              <div class="h-1 bg-amber-300 rounded mb-1"></div><div class="h-1 bg-amber-300 rounded mb-1 w-4/5"></div>
+            </div>
+          </div>
+          <p class="text-sm text-gray-700 flex-1">屏幕就是摊开的书桌：中间书页，页边空白处贴 AI 便签。涂写就像拿笔在书上圈画。</p>
+          <p class="text-xs text-gray-500 mt-2">适合：多数时间在读书、想要纸书批注的熟悉感</p>
+          <button @click="tab='pa'" class="mt-3 text-sm text-purple-700 font-medium hover:underline text-left">看方案 A 详情 →</button>
+        </div>
+        <div class="bg-white border-2 border-blue-200 rounded-xl p-4 flex flex-col">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-sm font-bold">B</span>
+            <span class="font-semibold">双栏工作台</span>
+          </div>
+          <div class="rounded-lg bg-blue-50 p-3 mb-3 h-24 relative overflow-hidden">
+            <div class="absolute left-3 top-2 bottom-2 w-24 bg-white border border-blue-200 rounded shadow-sm p-1.5">
+              <div class="h-1 bg-gray-200 rounded mb-1"></div><div class="h-1 bg-gray-200 rounded mb-1 w-4/5"></div><div class="h-1 bg-gray-200 rounded"></div>
+            </div>
+            <div class="absolute right-2 top-2 bottom-2 left-32 bg-white border border-blue-300 rounded shadow-sm p-1.5">
+              <div class="h-2 w-10 bg-blue-200 rounded-full mb-1.5"></div><div class="h-1 bg-gray-200 rounded mb-1"></div><div class="h-1 bg-gray-200 rounded mb-1 w-5/6"></div><div class="h-6 bg-emerald-100 border border-emerald-200 rounded mb-1"></div><div class="h-2 bg-gray-100 rounded-full"></div>
+            </div>
+          </div>
+          <p class="text-sm text-gray-700 flex-1">书在左（六成宽），AI 面板在右（四成宽），一直都在。每次涂写提问都沉淀成一条可以回看的对话流。</p>
+          <p class="text-xs text-gray-500 mt-2">适合：研究式阅读、频繁追问、跨章查证</p>
+          <button @click="tab='pb'" class="mt-3 text-sm text-blue-700 font-medium hover:underline text-left">看方案 B 详情 →</button>
+        </div>
+        <div class="bg-white border-2 border-emerald-200 rounded-xl p-4 flex flex-col">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded text-sm font-bold">C</span>
+            <span class="font-semibold">沉浸浮层</span>
+          </div>
+          <div class="rounded-lg bg-emerald-50 p-3 mb-3 h-24 relative overflow-hidden">
+            <div class="absolute inset-x-4 top-2 bottom-2 bg-white border border-emerald-200 rounded shadow-sm p-1.5">
+              <div class="h-1 bg-gray-200 rounded mb-1"></div><div class="h-1 bg-gray-200 rounded mb-1 w-5/6"></div><div class="h-1 bg-gray-200 rounded w-4/6"></div>
+            </div>
+            <div class="absolute left-1/2 -translate-x-1/2 top-4 h-4 w-24 bg-white/90 border border-emerald-300 rounded-full shadow"></div>
+            <div class="absolute right-4 top-10 w-14 h-12 glass border border-emerald-300 rounded-lg shadow p-1">
+              <div class="h-1 bg-gray-300 rounded mb-1"></div><div class="h-5 bg-emerald-100 rounded"></div>
+            </div>
+          </div>
+          <p class="text-sm text-gray-700 flex-1">平时屏幕上只有书，AI 完全潜伏；一圈选就地弹出轻浮卡，图解可以放大成全屏"剧场模式"。</p>
+          <p class="text-xs text-gray-500 mt-2">适合：极致沉浸 + 想让交互动画发挥最大效果</p>
+          <button @click="tab='pc'" class="mt-3 text-sm text-emerald-700 font-medium hover:underline text-left">看方案 C 详情 →</button>
+        </div>
+      </div>
+
+      <!-- 使用主线 -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 class="font-semibold text-lg mb-1">一次完整的使用主线</h2>
+        <p class="text-sm text-gray-500 mb-4">前后两端（上传、解析、缓存）三个方案完全一样，<span class="bg-amber-100 text-amber-800 rounded px-1">黄色部分</span>才是三个方案分歧的地方。</p>
+        <div class="flex flex-wrap items-center gap-1.5 text-sm">
+          <span class="bg-slate-100 border border-slate-300 rounded-lg px-3 py-1.5">上传 PDF / EPUB</span><span class="text-gray-400">→</span>
+          <span class="bg-slate-100 border border-slate-300 rounded-lg px-3 py-1.5">解析成章节段落</span><span class="text-gray-400">→</span>
+          <span class="bg-slate-100 border border-slate-300 rounded-lg px-3 py-1.5">开始阅读</span><span class="text-gray-400">→</span>
+          <span class="bg-amber-100 border border-amber-300 text-amber-900 rounded-lg px-3 py-1.5">涂写圈选提问</span><span class="text-amber-400">→</span>
+          <span class="bg-amber-100 border border-amber-300 text-amber-900 rounded-lg px-3 py-1.5">AI 就近回答</span><span class="text-amber-400">→</span>
+          <span class="bg-amber-100 border border-amber-300 text-amber-900 rounded-lg px-3 py-1.5">图解动画讲概念</span><span class="text-amber-400">→</span>
+          <span class="bg-amber-100 border border-amber-300 text-amber-900 rounded-lg px-3 py-1.5">引用点回原文</span><span class="text-gray-400">→</span>
+          <span class="bg-slate-100 border border-slate-300 rounded-lg px-3 py-1.5">同概念缓存复用</span>
+        </div>
+      </div>
+
+      <!-- UI 硬性要求 -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 class="font-semibold text-lg mb-1">三个方案都必须满足的 10 条 UI 硬性要求</h2>
+        <p class="text-sm text-gray-500 mb-4">不是新要求，全部从已定稿架构文档的红线和决策推导出来——所以<b>选哪个方案都不会违反红线</b>，差异只在体验取舍。</p>
+        <div class="grid md:grid-cols-2 gap-3">
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">涂写是第一提问入口：圈选 / 划线直接问，打字框只是辅助</p><p class="text-xs text-gray-400 mt-0.5">来源：设计目标（"而非依赖传统对话框"）</p></div></div>
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">设"阅读 / 圈选"模式开关，别让画笔和翻页手势打架</p><p class="text-xs text-gray-400 mt-0.5">来源：3.5 涂写交互模块</p></div></div>
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">圈选后可以补一句话，也可以什么都不写直接问</p><p class="text-xs text-gray-400 mt-0.5">来源：3.5 · 决策 D4</p></div></div>
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">AI 回答以卡片形式出现在书页里，就贴在所圈段落旁</p><p class="text-xs text-gray-400 mt-0.5">来源：决策 D5"页内为主"</p></div></div>
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">卡片能"展开到侧边栏"，接着聊不清空记忆</p><p class="text-xs text-gray-400 mt-0.5">来源：3.5 · 决策 D5"侧边栏兜底"</p></div></div>
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">每条回答、每张图解都带引用，点一下跳回原文段落</p><p class="text-xs text-gray-400 mt-0.5">来源：3.3 · 红线 2</p></div></div>
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">图解卡片必须带"辅助理解，以原文为准"标注，讲解默认折叠</p><p class="text-xs text-gray-400 mt-0.5">来源：3.4 · 红线 2</p></div></div>
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">累计花费随时可见，生成有频率限制提醒</p><p class="text-xs text-gray-400 mt-0.5">来源：3.6 · 红线 3</p></div></div>
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">目录跳转、翻章顺滑，EPUB 和文字版 PDF 都适用</p><p class="text-xs text-gray-400 mt-0.5">来源：M0 验收标准</p></div></div>
+          <div class="border rounded-lg p-3 flex items-start gap-2"><span class="text-emerald-600 mt-0.5">✓</span><div><p class="text-sm font-medium">第一版按鼠标 / 触摸板设计，不是手写笔</p><p class="text-xs text-gray-400 mt-0.5">来源：范围声明 · 风险 R4</p></div></div>
+        </div>
+      </div>
+
+      <!-- 边界说明 -->
+      <div class="border-l-4 border-blue-500 bg-blue-50 rounded-r-lg p-4">
+        <p class="text-sm text-blue-900"><b>边界说明：</b>本草图只决定交互层长相，不改架构、不改红线、不改里程碑。方案选定后，落地影响集中在 M0（阅读器壳子布局）和 M3（涂写与卡片挂载方式），Agent 层、生成层、书籍层完全不动。</p>
+      </div>
+    </div>
+
+    <!-- ===================== 已定方向（第 2 轮合成） ===================== -->
+    <div x-show="tab==='final'" x-cloak class="space-y-6">
+      <div class="border-2 border-emerald-300 bg-emerald-50 rounded-xl p-5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="font-mono bg-emerald-600 text-white px-2.5 py-1 rounded text-sm font-bold">已定</span>
+          <h2 class="text-xl font-bold text-emerald-900">书桌 + 剧场 + 对话抽屉（D1 混搭 · 第 2 轮拍板）</h2>
+        </div>
+        <p class="text-emerald-900 mt-3 text-lg">"A 的纸感书桌为底——书页居中、AI 便签贴页边；图解一键放大成 C 的剧场；想连续聊时从右缘呼出对话抽屉，不用就关上。"</p>
+        <div class="flex flex-wrap gap-2 mt-3 text-xs">
+          <span class="bg-white text-purple-800 border border-purple-200 rounded-full px-3 py-1">底座：方案 A 的页边便签布局</span>
+          <span class="bg-white text-emerald-800 border border-emerald-200 rounded-full px-3 py-1">借 C：⤢ 剧场放大（D3）</span>
+          <span class="bg-white text-blue-800 border border-blue-200 rounded-full px-3 py-1">收 B：对话流装进"默认关闭的对话抽屉"</span>
+          <span class="bg-white text-slate-600 border border-slate-200 rounded-full px-3 py-1">默认"阅读"模式（D2）</span>
+        </div>
+        <div class="mt-4 flex gap-2 flex-wrap">
+          <button @click="tab='decisions'; $nextTick(()=>document.getElementById('cardD4').scrollIntoView({behavior:'smooth'}))"
+            class="bg-amber-500 hover:bg-amber-400 text-white rounded-full px-4 py-1.5 text-sm font-medium">唯一开放点：D4 对话抽屉形态 → 去投票</button>
+          <button @click="tab='decisions'" class="bg-white border border-emerald-300 text-emerald-800 rounded-full px-4 py-1.5 text-sm hover:bg-emerald-100">看全部决策存档</button>
+        </div>
+      </div>
+
+      <!-- 两种状态示意 -->
+      <div>
+        <h3 class="font-semibold mb-2">界面示意：左 = 默认阅读态（抽屉关着），右 = 对话抽屉打开</h3>
+        <div class="overflow-x-auto">
+          <div class="min-w-[720px] grid grid-cols-2 gap-4">
+            <!-- 状态一：默认阅读态 -->
+            <div class="rounded-xl border border-slate-300 shadow-lg overflow-hidden bg-white">
+              <div class="bg-slate-100 border-b border-slate-200 px-3 py-1.5 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                <span class="ml-3 text-[11px] text-slate-400">默认态：打开书就是这样，抽屉关着</span>
+              </div>
+              <div class="h-[420px] flex flex-col relative">
+                <div class="h-10 border-b border-slate-200 flex items-center px-3 gap-3 text-xs bg-white relative">
+                  <span class="font-medium text-slate-700">📖 第 3 章 · 供给与需求</span>
+                  <div class="absolute left-1/2 -translate-x-1/2 flex rounded-lg border border-slate-300 text-[11px] bg-white">
+                    <span class="cal" style="top:-9px;left:-9px">①</span>
+                    <span class="px-3 py-1 bg-slate-700 text-white font-medium rounded-l-lg">阅读</span>
+                    <span class="px-3 py-1 text-slate-500 rounded-r-lg">✏️ 圈选</span>
+                  </div>
+                  <span class="ml-auto flex items-center gap-2">
+                    <span class="bg-blue-50 border border-blue-300 text-blue-700 rounded-full px-2 py-0.5 relative"><span class="cal" style="width:16px;height:16px;line-height:16px;font-size:9px;top:-8px;left:-8px">②</span>💬 对话</span>
+                    <span class="text-slate-400 relative"><span class="cal" style="left:auto;right:-9px;top:-9px">⑥</span>¥0.42</span>
+                  </span>
+                </div>
+                <div class="flex-1 flex relative bg-[#faf9f6]">
+                  <div class="absolute left-0 top-1/2 -translate-y-1/2 bg-white border border-l-0 border-slate-300 rounded-r-lg px-1 py-3 text-[10px] text-slate-500" style="writing-mode:vertical-rl">目录 ⟨</div>
+                  <div class="flex-1 max-w-[400px] mx-auto my-4 bg-white border border-slate-200 rounded shadow-sm px-6 py-4 book-serif text-[13px] leading-6 text-slate-800">
+                    <p class="text-center text-sm font-bold mb-3">3.2 供给曲线的移动</p>
+                    <p class="mb-3">当生产成本上升时，厂商在任一价格水平下愿意提供的数量都会减少，整条供给曲线向左移动。</p>
+                    <p class="mb-2"><span class="relative inline"><span class="scribble">在需求不变的条件下，供给减少使均衡价格上升，均衡数量下降。</span><span class="cal cal-b" style="top:-14px;left:-16px">⑤</span></span>
+                      <span class="inline-flex items-center gap-1 ml-1 align-middle bg-white border border-purple-300 shadow-sm rounded-full px-2 py-0.5 text-[10px] text-purple-700">💬 问 AI</span>
+                    </p>
+                    <p>这一结果与直觉一致：市场上的商品变得更稀缺，买者之间的竞争推高了成交价格。</p>
+                  </div>
+                  <div class="absolute right-3 top-6 w-52">
+                    <div class="relative bg-amber-50 border border-amber-300 rounded-lg shadow-md p-2.5 rotate-1">
+                      <span class="cal cal-b" style="top:-11px;left:-11px">③</span>
+                      <div class="absolute -top-1.5 right-3 text-sm">📌</div>
+                      <p class="text-[11px] font-bold text-amber-900">图解 · 供给曲线左移</p>
+                      <svg viewBox="0 0 160 110" class="w-full h-auto my-1 bg-white rounded border border-amber-200">
+                        <line x1="18" y1="8" x2="18" y2="92" stroke="#94a3b8" stroke-width="1.5"/>
+                        <line x1="18" y1="92" x2="150" y2="92" stroke="#94a3b8" stroke-width="1.5"/>
+                        <text x="7" y="13" font-size="9" fill="#64748b">P</text>
+                        <text x="143" y="103" font-size="9" fill="#64748b">Q</text>
+                        <line x1="30" y1="20" x2="130" y2="80" stroke="#3b82f6" stroke-width="2"/>
+                        <text x="133" y="80" font-size="9" fill="#3b82f6">D</text>
+                        <line x1="40" y1="80" x2="130" y2="18" stroke="#10b981" stroke-width="2"/>
+                        <text x="133" y="20" font-size="9" fill="#10b981">S₀</text>
+                        <line x1="20" y1="80" x2="110" y2="18" stroke="#10b981" stroke-width="2" stroke-dasharray="4 3" class="s1-blink" opacity="0"/>
+                        <text x="94" y="14" font-size="9" fill="#05967e" class="s1-blink" opacity="0">S₁</text>
+                        <g class="eq-move"><circle cx="82" cy="51" r="3.5" fill="#ef4444"/></g>
+                      </svg>
+                      <p class="text-[9px] text-amber-700 bg-amber-100 rounded px-1.5 py-0.5 inline-block">辅助理解，以原文为准</p>
+                      <div class="flex flex-wrap gap-1 mt-2 text-[10px]">
+                        <span class="bg-emerald-600 text-white rounded-full px-1.5 py-0.5 relative"><span class="cal cal-c" style="width:16px;height:16px;line-height:16px;font-size:9px;top:-8px;left:-8px">④</span>⤢ 剧场放大</span>
+                        <span class="bg-white border border-purple-300 rounded-full px-1.5 py-0.5 text-purple-700">↗ 原文 P3-12</span>
+                        <span class="bg-white border border-blue-300 rounded-full px-1.5 py-0.5 text-blue-700 relative"><span class="cal" style="width:16px;height:16px;line-height:16px;font-size:9px;top:-8px;left:-8px">②</span>展开深聊 →</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- 状态二：对话抽屉打开 -->
+            <div class="rounded-xl border border-slate-300 shadow-lg overflow-hidden bg-white">
+              <div class="bg-slate-100 border-b border-slate-200 px-3 py-1.5 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                <span class="ml-3 text-[11px] text-slate-400">深聊态：抽屉从右缘滑出（浮层示意），看完就收</span>
+              </div>
+              <div class="h-[420px] flex flex-col relative">
+                <div class="h-10 border-b border-slate-200 flex items-center px-3 gap-3 text-xs bg-white">
+                  <span class="font-medium text-slate-700">📖 第 3 章 · 供给与需求</span>
+                  <div class="absolute left-1/2 -translate-x-1/2 flex rounded-lg border border-slate-300 text-[11px] bg-white">
+                    <span class="px-3 py-1 bg-slate-700 text-white font-medium rounded-l-lg">阅读</span>
+                    <span class="px-3 py-1 text-slate-500 rounded-r-lg">✏️ 圈选</span>
+                  </div>
+                  <span class="ml-auto flex items-center gap-2">
+                    <span class="bg-blue-600 text-white rounded-full px-2 py-0.5">💬 对话 ●</span>
+                    <span class="text-slate-400">¥0.42</span>
+                  </span>
+                </div>
+                <div class="flex-1 flex relative bg-[#faf9f6]">
+                  <div class="absolute left-0 top-1/2 -translate-y-1/2 bg-white border border-l-0 border-slate-300 rounded-r-lg px-1 py-3 text-[10px] text-slate-500" style="writing-mode:vertical-rl">目录 ⟨</div>
+                  <div class="flex-1 bg-white/70 border border-slate-200 m-4 mr-0 rounded-l shadow-sm px-5 py-4 book-serif text-[12px] leading-6 text-slate-500">
+                    <p class="text-center text-sm font-bold mb-3 text-slate-600">3.2 供给曲线的移动</p>
+                    <p class="mb-2">当生产成本上升时，厂商在任一价格水平下愿意提供的数量都会减少……</p>
+                    <p class="mb-2"><span class="scribble opacity-70">在需求不变的条件下，供给减少使均衡价格上升……</span></p>
+                    <p class="text-[11px] text-slate-400 mt-2">书页被浮层盖住右侧（不挤压、不重排）——是否改成"打开时书页让位变窄"= <b>D4 待你拍板</b></p>
+                  </div>
+                  <div class="absolute right-0 top-0 bottom-0 w-[46%] bg-white border-l border-slate-300 shadow-2xl flex flex-col">
+                    <div class="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center relative">
+                      <span class="cal" style="top:10px;right:-9px;left:auto">⑦</span>
+                      <p class="text-xs font-semibold text-slate-700">💬 对话 · 接着第 3 章的便签聊</p>
+                      <span class="ml-auto text-slate-400 text-sm">✕</span>
+                    </div>
+                    <div class="flex-1 px-3 py-2 space-y-2 text-xs overflow-hidden">
+                      <div class="flex justify-end">
+                        <div class="bg-blue-600 text-white rounded-2xl rounded-br-sm px-3 py-1.5 max-w-[88%]">为什么供给减少，价格就一定上升？</div>
+                      </div>
+                      <div class="flex">
+                        <div class="bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-3 py-2 max-w-[94%] shadow-sm">
+                          <p class="text-slate-700">供给左移后，原价格下买不到原来那么多——供不应求，买者之间的竞争把成交价推高，直到新的均衡点。</p>
+                          <div class="flex gap-1 mt-1.5">
+                            <span class="bg-blue-50 border border-blue-200 text-blue-700 rounded-full px-2 py-0.5 text-[10px]">↗ 原文 P3-12</span>
+                          </div>
+                          <div class="mt-2 border border-emerald-200 bg-emerald-50 rounded-lg p-2">
+                            <p class="text-[10px] font-bold text-emerald-800 mb-1">图解 · 供给曲线左移</p>
+                            <svg viewBox="0 0 160 110" class="w-full h-auto bg-white rounded border border-emerald-200">
+                              <line x1="18" y1="8" x2="18" y2="92" stroke="#94a3b8" stroke-width="1.5"/>
+                              <line x1="18" y1="92" x2="150" y2="92" stroke="#94a3b8" stroke-width="1.5"/>
+                              <line x1="30" y1="20" x2="130" y2="80" stroke="#3b82f6" stroke-width="2"/>
+                              <text x="133" y="80" font-size="9" fill="#3b82f6">D</text>
+                              <line x1="40" y1="80" x2="130" y2="18" stroke="#10b981" stroke-width="2"/>
+                              <text x="133" y="20" font-size="9" fill="#10b981">S₀</text>
+                              <line x1="20" y1="80" x2="110" y2="18" stroke="#10b981" stroke-width="2" stroke-dasharray="4 3" class="s1-blink" opacity="0"/>
+                              <g class="eq-move"><circle cx="82" cy="51" r="3.5" fill="#ef4444"/></g>
+                            </svg>
+                            <p class="text-[9px] text-emerald-700 mt-1">辅助理解，以原文为准 · <span class="underline decoration-dotted">⤢ 放大</span></p>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="flex justify-end">
+                        <div class="bg-blue-600 text-white rounded-2xl rounded-br-sm px-3 py-1.5 max-w-[88%]">那政府给补贴呢？</div>
+                      </div>
+                    </div>
+                    <div class="border-t border-slate-200 bg-white px-3 py-2 flex items-center gap-2">
+                      <span class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs">✏️</span>
+                      <div class="flex-1 bg-slate-100 rounded-full px-3 py-1.5 text-[11px] text-slate-400">补一句话（可不填）</div>
+                      <span class="bg-blue-600 text-white rounded-full px-2.5 py-1 text-[11px]">发送</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3 text-xs text-gray-700">
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">①</span><b>默认"阅读"模式</b>（D2）：打开书只能读，按 A 键或点开关才进入圈选，不会误画</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">②</span><b>对话抽屉三个入口</b>：顶栏"💬 对话"、便签"展开深聊"（带着便签上下文）、快捷键 D；✕ 或 Esc 收起</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] items-center justify-center mr-1">③</span><b>页边便签</b>（A 底座）：回答钉在与所圈段落同高的页边；27 寸外屏可并排多张</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] items-center justify-center mr-1">④</span><b>剧场放大</b>（借 C）：便签 / 抽屉里的图解小卡一键进全屏深色剧场，可亲手拖动曲线</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] items-center justify-center mr-1">⑤</span><b>旧笔迹保留</b>：阅读模式下已画的笔迹和便签照常显示，只是不能新画</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">⑥</span><b>费用常驻顶栏</b>：小字不打扰，接近频率上限时变琥珀色提醒</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">⑦</span><b>对话抽屉</b>（右图）：右缘滑出的浮层，盖在书页上、不挤压不重排；打开形态（浮层 / 分栏 / 可钉住）= D4 待拍板</p>
+        </div>
+      </div>
+
+      <!-- 四状态规格 -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 class="font-semibold mb-1">四种使用状态 × 屏幕上是什么（按 Q2 的场景比重排）</h3>
+        <p class="text-xs text-gray-500 mb-3">你给的场景比重：沉浸通读 50% / 边读边问 40% / 查询式跳读 10%——所以默认态优先保通读，圈选动线按高频操作打磨。</p>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-xs text-gray-400 border-b"><th class="py-1.5 pr-3">状态（占比）</th><th class="py-1.5 pr-3">怎么进入</th><th class="py-1.5">屏幕上是什么</th></tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr><td class="py-2 pr-3 font-medium">通读态（50%）</td><td class="py-2 pr-3">打开书即是默认（D2）</td><td class="py-2">书页完整 + 页边便签；对话抽屉关闭，没有任何面板挤压书页</td></tr>
+              <tr><td class="py-2 pr-3 font-medium">圈选态（40%）</td><td class="py-2 pr-3">按 A 键 / 点开关</td><td class="py-2">鼠标变笔，画圈 → 气泡补话 → 便签钉页边；图解小卡自动演示，⤢ 可进剧场</td></tr>
+              <tr><td class="py-2 pr-3 font-medium">深聊态</td><td class="py-2 pr-3">顶栏 💬 / 便签"展开深聊" / 快捷键 D</td><td class="py-2">对话抽屉滑出，继承上下文连续多轮（形态 = D4 待定）</td></tr>
+              <tr><td class="py-2 pr-3 font-medium">跳读态（10%）</td><td class="py-2 pr-3">左缘"目录"拉手 / 抽屉头部"全书地图"</td><td class="py-2">章节树滑出，点章节直接跳；全书 12 章地图可跨章旁证</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Q1/Q2 落实 -->
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="border-l-4 border-blue-500 bg-blue-50 rounded-r-lg p-4">
+          <p class="font-semibold text-blue-800 mb-1">Q1 落实 · 27 寸外屏</p>
+          <p class="text-sm text-blue-900">页边便签区按宽屏设计，可并排 2~3 张便签、互不遮挡；同时保留窄屏规则——换成笔记本屏时便签退化为书页底部堆叠，随时可看。</p>
+        </div>
+        <div class="border-l-4 border-blue-500 bg-blue-50 rounded-r-lg p-4">
+          <p class="font-semibold text-blue-800 mb-1">Q2 落实 · 通读 50% / 边读边问 40% / 跳读 10%</p>
+          <p class="text-sm text-blue-900">默认态向通读优化（书页永远完整）；"边读边问"占比高，圈选 → 便签 → 抽屉的链路按高频动线打磨：快捷键 A / D 全程手不离键盘。</p>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <button @click="tab='pa'" class="text-sm text-purple-600 hover:underline">回看方案 A（底座）</button>
+        <button @click="tab='decisions'" class="text-sm text-amber-600 hover:underline">去投 D4 →</button>
+      </div>
+    </div>
+
+    <!-- ===================== 方案 A ===================== -->
+    <div x-show="tab==='pa'" x-cloak class="space-y-6">
+      <div class="border-l-4 border-emerald-500 bg-emerald-50 rounded-r-lg p-3">
+        <p class="text-sm text-emerald-900"><b>✅ 第 2 轮去向：胜出，被定为底座。</b>页边便签布局原样保留，再叠加 C 的剧场放大和"默认关闭的对话抽屉"——合成结果见「已定方向」标签。</p>
+      </div>
+      <div class="border-2 border-purple-200 bg-purple-50 rounded-xl p-5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="font-mono bg-purple-600 text-white px-2.5 py-1 rounded text-sm font-bold">方案 A</span>
+          <h2 class="text-xl font-bold text-purple-900">纸感书桌 · 页边便签</h2>
+        </div>
+        <p class="text-purple-900 mt-3 text-lg">"屏幕就是摊开的书桌——中间是书，页边空白处贴 AI 便签；涂写就像拿笔在书上圈画。"</p>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <span class="bg-white text-purple-800 border border-purple-200 rounded-full px-3 py-1 text-xs">纸质感</span>
+          <span class="bg-white text-purple-800 border border-purple-200 rounded-full px-3 py-1 text-xs">页边便签</span>
+          <span class="bg-white text-purple-800 border border-purple-200 rounded-full px-3 py-1 text-xs">问答有"位置记忆"</span>
+          <span class="bg-white text-gray-500 border border-gray-200 rounded-full px-3 py-1 text-xs">参照物：GoodNotes / MarginNote 的页边批注</span>
+        </div>
+        <div class="mt-4 flex gap-2 flex-wrap">
+          <button @click="tab='final'" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-full px-4 py-1.5 text-sm font-medium">✅ 已定为底座 · 看合成设计 →</button>
+          <button @click="tab='compare'" class="bg-white border border-purple-300 text-purple-800 rounded-full px-4 py-1.5 text-sm hover:bg-purple-100">先看三案对比</button>
+        </div>
+      </div>
+
+      <!-- 界面示意 A -->
+      <div>
+        <h3 class="font-semibold mb-2">界面示意（示意内容可交互：便签里"讲解"可点开）</h3>
+        <div class="overflow-x-auto">
+          <div class="min-w-[680px] rounded-xl border border-slate-300 shadow-lg overflow-hidden bg-white">
+            <div class="bg-slate-100 border-b border-slate-200 px-3 py-1.5 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              <span class="ml-3 text-[11px] text-slate-400">localhost:8000 / 《经济学原理》· 第 3 章</span>
+            </div>
+            <div class="h-[440px] flex flex-col relative">
+              <!-- 顶部工具条 -->
+              <div class="h-10 border-b border-slate-200 flex items-center px-3 gap-3 text-xs bg-white relative">
+                <span class="font-medium text-slate-700">📖 第 3 章 · 供给与需求</span>
+                <div class="absolute left-1/2 -translate-x-1/2 flex rounded-lg border border-slate-300 text-[11px] bg-white">
+                  <span class="cal" style="top:-9px;left:-9px">①</span>
+                  <span class="px-3 py-1 text-slate-500 rounded-l-lg">阅读</span>
+                  <span class="px-3 py-1 bg-purple-600 text-white font-medium rounded-r-lg">✏️ 圈选</span>
+                </div>
+                <span class="ml-auto text-slate-400 relative"><span class="cal" style="left:auto;right:-9px;top:-9px">⑥</span>¥0.42 · 本会话</span>
+              </div>
+              <!-- 书页 + 页边 -->
+              <div class="flex-1 flex relative bg-[#faf9f6]">
+                <!-- 左缘目录拉手 -->
+                <div class="absolute left-0 top-1/2 -translate-y-1/2 bg-white border border-l-0 border-slate-300 rounded-r-lg px-1 py-3 text-[10px] text-slate-500" style="writing-mode:vertical-rl">目录 ⟨</div>
+                <!-- 书页 -->
+                <div class="flex-1 max-w-[440px] mx-auto my-4 bg-white border border-slate-200 rounded shadow-sm px-6 py-4 book-serif text-[13px] leading-6 text-slate-800">
+                  <p class="text-center text-sm font-bold mb-3">3.2 供给曲线的移动</p>
+                  <p class="mb-3">当生产成本上升时，厂商在任一价格水平下愿意提供的数量都会减少，整条供给曲线向左移动。</p>
+                  <p class="mb-2"><span class="relative inline"><span class="scribble">在需求不变的条件下，供给减少使均衡价格上升，均衡数量下降。</span><span class="cal cal-b" style="top:-14px;left:-16px">②</span></span>
+                    <span class="inline-flex items-center gap-1 ml-1 align-middle bg-white border border-purple-300 shadow-sm rounded-full px-2 py-0.5 text-[10px] text-purple-700">💬 问 AI</span>
+                  </p>
+                  <div class="flex items-center gap-1.5 mt-2 mb-3 ml-2">
+                    <div class="flex-1 max-w-[260px] bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-[11px] text-slate-700 shadow-sm flex items-center gap-2">
+                      <span class="flex-1">为什么供给减少，价格就一定上升？</span>
+                      <span class="bg-purple-600 text-white rounded-md px-1.5 py-0.5 text-[10px]">发送</span>
+                    </div>
+                  </div>
+                  <p>这一结果与直觉一致：市场上的商品变得更稀缺，买者之间的竞争推高了成交价格。</p>
+                </div>
+                <!-- 页边便签 -->
+                <div class="absolute right-3 top-8 w-52 space-y-2">
+                  <div class="bg-slate-200/70 border border-slate-300 rounded-lg px-2 py-1 text-[10px] text-slate-500 flex items-center gap-1">
+                    📌 本章已钉 1 问 · 章末可看清单
+                  </div>
+                  <div class="relative bg-amber-50 border border-amber-300 rounded-lg shadow-md p-2.5 rotate-1">
+                    <span class="cal cal-b" style="top:-11px;left:-11px">③</span>
+                    <div class="absolute -top-1.5 right-3 text-sm">📌</div>
+                    <p class="text-[11px] font-bold text-amber-900">图解 · 供给曲线左移</p>
+                    <svg viewBox="0 0 160 110" class="w-full h-auto my-1 bg-white rounded border border-amber-200">
+                      <line x1="18" y1="8" x2="18" y2="92" stroke="#94a3b8" stroke-width="1.5"/>
+                      <line x1="18" y1="92" x2="150" y2="92" stroke="#94a3b8" stroke-width="1.5"/>
+                      <text x="7" y="13" font-size="9" fill="#64748b">P</text>
+                      <text x="143" y="103" font-size="9" fill="#64748b">Q</text>
+                      <line x1="30" y1="20" x2="130" y2="80" stroke="#3b82f6" stroke-width="2"/>
+                      <text x="133" y="80" font-size="9" fill="#3b82f6">D</text>
+                      <line x1="40" y1="80" x2="130" y2="18" stroke="#10b981" stroke-width="2"/>
+                      <text x="133" y="20" font-size="9" fill="#10b981">S₀</text>
+                      <line x1="20" y1="80" x2="110" y2="18" stroke="#10b981" stroke-width="2" stroke-dasharray="4 3" class="s1-blink" opacity="0"/>
+                      <text x="94" y="14" font-size="9" fill="#05967e" class="s1-blink" opacity="0">S₁</text>
+                      <text x="30" y="34" font-size="9" fill="#ef4444" class="s1-blink" opacity="0">价格↑</text>
+                      <g class="eq-move"><circle cx="82" cy="51" r="3.5" fill="#ef4444"/></g>
+                    </svg>
+                    <p class="text-[9px] text-amber-700 bg-amber-100 rounded px-1.5 py-0.5 inline-block">辅助理解，以原文为准</p>
+                    <details class="mt-1">
+                      <summary class="text-[10px] text-amber-700 cursor-pointer">讲解 ▾（默认折叠）</summary>
+                      <p class="text-[10px] text-amber-800 mt-1 leading-4">供给左移后，原价格下供不应求，买者竞争把成交价推高到新均衡点。</p>
+                    </details>
+                    <div class="flex flex-wrap gap-1 mt-2 text-[10px]">
+                      <span class="bg-white border border-amber-300 rounded-full px-1.5 py-0.5 text-amber-800 relative"><span class="cal cal-b" style="width:16px;height:16px;line-height:16px;font-size:9px;top:-8px;left:-8px">④</span>⤢ 剧场放大</span>
+                      <span class="bg-white border border-purple-300 rounded-full px-1.5 py-0.5 text-purple-700 relative"><span class="cal cal-b" style="width:16px;height:16px;line-height:16px;font-size:9px;top:-8px;left:-8px">⑤</span>↗ 原文 P3-12</span>
+                      <span class="bg-white border border-slate-300 rounded-full px-1.5 py-0.5 text-slate-600">展开深聊 →</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 图注 -->
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3 text-xs text-gray-700">
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">①</span><b>阅读 / 圈选模式开关</b>（顶栏正中，另配快捷键 A），画笔和翻页互不干扰</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] items-center justify-center mr-1">②</span><b>画圈 + 补一句话</b>：圈完在旁边冒出小气泡，可以直接发送，也可以写一句话补充</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] items-center justify-center mr-1">③</span><b>AI 便签钉在页边</b>，与所圈段落同一高度；图解动画内嵌在便签里自动演示</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] items-center justify-center mr-1">④</span><b>剧场放大</b>：便签里的动画可一键放大成全屏大画布（这点借鉴了方案 C）</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] items-center justify-center mr-1">⑤</span><b>引用回跳</b>：点"原文 P3-12"，书页滚到对应段落并高亮；"展开深聊"从右缘拉出全高侧边栏</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">⑥</span><b>费用常驻顶栏</b>：小字不打扰，接近频率上限时变琥珀色提醒</p>
+        </div>
+      </div>
+
+      <!-- 动线 A -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 class="font-semibold mb-3">核心动线：从画圈到深聊（4 步）</h3>
+        <div class="grid sm:grid-cols-4 gap-2 text-sm">
+          <div class="border rounded-lg p-3"><p class="font-mono text-purple-600 font-bold text-xs mb-1">STEP 1</p><p>顶栏切到"圈选"（或按 A 键），鼠标变成一支笔</p></div>
+          <div class="border rounded-lg p-3"><p class="font-mono text-purple-600 font-bold text-xs mb-1">STEP 2</p><p>在正文上画圈，旁边冒出气泡：直接发送，或补一句话</p></div>
+          <div class="border rounded-lg p-3"><p class="font-mono text-purple-600 font-bold text-xs mb-1">STEP 3</p><p>便签立刻钉到页边：先出文字讲解，图解动画几秒内填进来</p></div>
+          <div class="border rounded-lg p-3"><p class="font-mono text-purple-600 font-bold text-xs mb-1">STEP 4</p><p>想继续聊就点"展开深聊"：右缘拉出全高侧边栏，记忆连续</p></div>
+        </div>
+      </div>
+
+      <!-- 关键点落实 A -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 class="font-semibold mb-3">10 条硬性要求在这个方案里怎么做</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-xs text-gray-400 border-b"><th class="py-1.5 pr-3">要求</th><th class="py-1.5">方案 A 的做法</th></tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr><td class="py-2 pr-3 text-gray-500">第一入口是涂写</td><td>书页上直接画圈，气泡跟手出现；顶栏输入框不存在</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">模式开关</td><td>顶栏正中"阅读 / 圈选"分段开关 + 快捷键 A</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">圈选后附言</td><td>圈旁气泡里输入，留空直接发送</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">回答贴在书页</td><td>便签钉在页边、与所圈段落同高，阅读时余光可见</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">展开侧边栏</td><td>便签上"展开深聊"，右缘全高侧栏，接着便签的上下文继续</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">引用回跳</td><td>每张便签带"原文 P3-12"，点击滚动 + 高亮</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">图解标注</td><td>便签内置"以原文为准"标签；讲解默认折叠</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">费用与限流</td><td>顶栏右侧常驻小字，接近限额变琥珀色</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">目录 / 翻章</td><td>左缘"目录"拉手，轻拉滑出章节树</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">鼠标 / 触摸板</td><td>画圈用鼠标拖拽即可；快捷键让手不离键盘</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 优缺点 A -->
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="border-l-4 border-emerald-500 bg-emerald-50 rounded-r-lg p-4">
+          <p class="font-semibold text-emerald-800 mb-2">✔ 优点</p>
+          <ul class="text-sm text-emerald-900 space-y-1.5 list-disc list-inside">
+            <li>阅读动线完全不被打断：AI 藏在页边，想看才看</li>
+            <li>问答有"位置记忆"——"我在 3.2 节页边问过弹性"，翻回去就能看到</li>
+            <li>最接近纸书批注的习惯，学习成本几乎为零</li>
+            <li>和已定稿决策 D5"页内为主 + 侧边栏兜底"天然一致</li>
+          </ul>
+        </div>
+        <div class="border-l-4 border-red-500 bg-red-50 rounded-r-lg p-4">
+          <p class="font-semibold text-red-800 mb-2">✘ 缺点与风险</p>
+          <ul class="text-sm text-red-900 space-y-1.5 list-disc list-inside">
+            <li>窄屏（笔记本半屏、平板竖屏）页边放不下，便签要退化成书页底部堆叠</li>
+            <li>问得多了页边会挤，需要"只看图钉"的折叠形态</li>
+            <li>页边按段落高度定位，是三个方案里布局实现最费工的</li>
+          </ul>
+        </div>
+      </div>
+      <details class="bg-white border border-gray-200 rounded-xl p-4">
+        <summary class="text-sm text-gray-500 cursor-pointer">对里程碑的影响与技术细节 ▾</summary>
+        <p class="text-sm text-gray-700 mt-2">M0 壳子：中等工作量（页边留白的栅格布局）。M3 挂载：较高（便签按段落锚点计算页边高度，EPUB / PDF 两套适配）。M2 图解：小卡内嵌 + 放大浮层，标准实现。Agent / 生成 / 书籍层不变。</p>
+      </details>
+      <div class="flex gap-2">
+        <button @click="tab='pb'" class="text-sm text-blue-600 hover:underline">下一个：方案 B →</button>
+        <button @click="tab='overview'" class="text-sm text-gray-500 hover:underline">回到概览</button>
+      </div>
+    </div>
+
+    <!-- ===================== 方案 B ===================== -->
+    <div x-show="tab==='pb'" x-cloak class="space-y-6">
+      <div class="border-l-4 border-blue-500 bg-blue-50 rounded-r-lg p-3">
+        <p class="text-sm text-blue-900"><b>第 2 轮去向：未整体胜出</b>——常驻分栏压窄书页、形态最像对话框。但它的<b>对话流被保留</b>：收进"默认关闭、手动呼出的对话抽屉"（见「已定方向」）；"最快能用上"也让它成为 D4"固定分栏"选项的备选底子。</p>
+      </div>
+      <div class="border-2 border-blue-200 bg-blue-50 rounded-xl p-5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="font-mono bg-blue-600 text-white px-2.5 py-1 rounded text-sm font-bold">方案 B</span>
+          <h2 class="text-xl font-bold text-blue-900">双栏工作台 · 书 + AI 常驻分栏</h2>
+        </div>
+        <p class="text-blue-900 mt-3 text-lg">"书在左，AI 在右，一直都在——每次涂写提问都沉淀成一条可以回看的对话流。"</p>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <span class="bg-white text-blue-800 border border-blue-200 rounded-full px-3 py-1 text-xs">AI 常驻视线</span>
+          <span class="bg-white text-blue-800 border border-blue-200 rounded-full px-3 py-1 text-xs">完整对话流可回溯</span>
+          <span class="bg-white text-blue-800 border border-blue-200 rounded-full px-3 py-1 text-xs">追问最顺</span>
+          <span class="bg-white text-gray-500 border border-gray-200 rounded-full px-3 py-1 text-xs">参照物：Notion AI 侧栏 / Edge Copilot 分栏</span>
+        </div>
+        <div class="mt-4 flex gap-2 flex-wrap">
+          <button @click="tab='final'" class="bg-blue-600 hover:bg-blue-500 text-white rounded-full px-4 py-1.5 text-sm font-medium">看对话流如何收进最终方案 →</button>
+          <button @click="tab='compare'" class="bg-white border border-blue-300 text-blue-800 rounded-full px-4 py-1.5 text-sm hover:bg-blue-100">先看三案对比</button>
+        </div>
+      </div>
+
+      <!-- 界面示意 B -->
+      <div>
+        <h3 class="font-semibold mb-2">界面示意</h3>
+        <div class="overflow-x-auto">
+          <div class="min-w-[680px] rounded-xl border border-slate-300 shadow-lg overflow-hidden bg-white">
+            <div class="bg-slate-100 border-b border-slate-200 px-3 py-1.5 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+              <span class="ml-3 text-[11px] text-slate-400">localhost:8000 / 《经济学原理》· 第 3 章</span>
+              <span class="ml-auto text-[11px] text-slate-400 relative"><span class="cal" style="left:auto;right:-9px;top:-9px">⑥</span>¥0.42</span>
+            </div>
+            <div class="h-[440px] flex">
+              <!-- 左：书页 -->
+              <div class="w-[58%] relative bg-[#faf9f6] p-3">
+                <div class="bg-white border border-slate-200 rounded shadow-sm h-full px-5 py-4 book-serif text-[12.5px] leading-6 text-slate-800 relative">
+                  <p class="text-center text-sm font-bold mb-3">3.4 需求的价格弹性</p>
+                  <p class="mb-2">当需求曲线较为陡峭时，价格大幅变动只引起需求量小幅变动，我们称此时需求缺乏弹性。</p>
+                  <p class="mb-3"><span class="relative inline scribble scribble-g">缺乏弹性的商品涨价时，卖者的总收入反而增加。</span><span class="inline-flex items-center gap-1 ml-1 align-middle bg-white border border-blue-300 shadow-sm rounded-full px-2 py-0.5 text-[10px] text-blue-700">💬 问 AI</span></p>
+                  <p class="flash-hl rounded px-0.5">奢侈品多属富有弹性，小幅涨价就会显著减少销量。</p>
+                  <p class="mt-3 text-[11px] text-slate-400">↑ 这行在演示：点右栏引用"原文 P3-14"后，书页滚到这里并高亮闪烁</p>
+                  <!-- 圈选浮钮 -->
+                  <div class="absolute bottom-3 right-3">
+                    <span class="cal" style="top:-9px;left:-9px">②</span>
+                    <div class="w-10 h-10 rounded-full bg-blue-600 text-white shadow-lg flex items-center justify-center text-base">✏️</div>
+                  </div>
+                  <!-- 钉回书页的锚点 -->
+                  <div class="absolute top-14 right-2 bg-amber-100 border border-amber-300 rounded-full px-1.5 py-0.5 text-[9px] text-amber-800 shadow-sm">
+                    <span class="cal" style="top:-9px;left:-9px">④</span>📌 图解已钉
+                  </div>
+                </div>
+              </div>
+              <!-- 右：AI 面板 -->
+              <div class="w-[42%] border-l border-slate-200 bg-slate-50 flex flex-col relative">
+                <span class="cal" style="top:10px;left:-9px">①</span>
+                <div class="px-3 py-2 border-b border-slate-200 bg-white">
+                  <p class="text-xs font-semibold text-slate-700">第 3 章 · 供给与需求</p>
+                  <p class="text-[10px] text-slate-400">全书地图 · 12 章 · 当前章已装载</p>
+                </div>
+                <div class="flex-1 overflow-hidden px-3 py-2 space-y-2 text-xs">
+                  <div class="flex justify-end">
+                    <div class="bg-blue-600 text-white rounded-2xl rounded-br-sm px-3 py-2 max-w-[85%]">
+                      <span class="inline-block align-middle w-12 h-8 rounded border border-blue-400 bg-slate-100 relative overflow-hidden mr-1.5">
+                        <span class="absolute inset-x-1 top-1 space-y-0.5">
+                          <span class="block h-0.5 bg-slate-300 rounded"></span><span class="block h-0.5 bg-slate-300 rounded"></span><span class="block h-0.5 bg-slate-300 rounded"></span>
+                        </span>
+                        <span class="absolute left-1.5 top-2 w-6 h-3 border-[1.5px] border-red-500 rounded-[50%]"></span>
+                      </span>这一段为什么缺乏弹性？
+                    </div>
+                  </div>
+                  <div class="flex">
+                    <div class="bg-white border border-slate-200 rounded-2xl rounded-bl-sm px-3 py-2 max-w-[92%] shadow-sm">
+                      <p class="text-slate-700">因为这类商品多是生活必需品，涨价时人们很难不买——需求量掉得比价格慢，总收入反而上升。</p>
+                      <div class="flex gap-1 mt-1.5">
+                        <span class="bg-blue-50 border border-blue-200 text-blue-700 rounded-full px-2 py-0.5 text-[10px] relative"><span class="cal" style="width:16px;height:16px;line-height:16px;font-size:9px;top:-8px;left:-8px">③</span>↗ 原文 P3-08</span>
+                        <span class="bg-blue-50 border border-blue-200 text-blue-700 rounded-full px-2 py-0.5 text-[10px]">↗ 原文 P3-14</span>
+                      </div>
+                      <div class="mt-2 border border-emerald-200 bg-emerald-50 rounded-lg p-2">
+                        <p class="text-[10px] font-bold text-emerald-800 mb-1">图解 · 需求缺乏弹性（动画）</p>
+                        <svg viewBox="0 0 140 90" class="w-full h-auto bg-white rounded border border-emerald-200">
+                          <line x1="16" y1="6" x2="16" y2="76" stroke="#94a3b8" stroke-width="1.5"/>
+                          <line x1="16" y1="76" x2="132" y2="76" stroke="#94a3b8" stroke-width="1.5"/>
+                          <text x="6" y="12" font-size="8" fill="#64748b">P</text>
+                          <text x="126" y="86" font-size="8" fill="#64748b">Q</text>
+                          <line x1="62" y1="10" x2="88" y2="70" stroke="#3b82f6" stroke-width="2.5"/>
+                          <text x="90" y="66" font-size="8" fill="#3b82f6">D（陡）</text>
+                          <line x1="20" y1="26" x2="100" y2="26" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3 2"/>
+                          <line x1="20" y1="50" x2="100" y2="50" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3 2"/>
+                          <g class="eq-slide"><circle cx="68" cy="26" r="3.5" fill="#ef4444"/></g>
+                          <text x="104" y="30" font-size="8" fill="#64748b">价↑</text>
+                          <text x="104" y="54" font-size="8" fill="#64748b">量小幅↓</text>
+                        </svg>
+                        <p class="text-[9px] text-emerald-700 mt-1">辅助理解，以原文为准 · <span class="underline decoration-dotted cursor-pointer">讲解 ▾</span> · <span class="underline decoration-dotted cursor-pointer">📌 钉到书页</span></p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex justify-end">
+                    <div class="bg-blue-600 text-white rounded-2xl rounded-br-sm px-3 py-1.5 max-w-[85%]">那奢侈品呢？</div>
+                  </div>
+                </div>
+                <div class="border-t border-slate-200 bg-white px-3 py-2 flex items-center gap-2 relative">
+                  <span class="cal" style="top:-9px;left:14px">⑤</span>
+                  <span class="w-7 h-7 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs">✏️</span>
+                  <div class="flex-1 bg-slate-100 rounded-full px-3 py-1.5 text-[11px] text-slate-400">补一句话（可不填，直接圈选也行）</div>
+                  <span class="bg-blue-600 text-white rounded-full px-2.5 py-1 text-[11px]">发送</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 图注 B -->
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3 text-xs text-gray-700">
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">①</span><b>AI 面板常驻右栏</b>：上面是"读到哪里、全书地图"，中间对话流，下面输入区</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">②</span><b>书页角浮钮</b>：点一下进入圈选，画圈后问题自动出现在右栏</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">③</span><b>引用 chips</b>：点一下，左栏书页滚到对应段落并高亮闪烁（示意里第三行正在演示）</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">④</span><b>图解可"钉到书页"</b>：右栏看完，钉回原文段落旁留个锚点</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">⑤</span><b>输入区</b>：圈选仍是主入口，打字只是补充</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] items-center justify-center mr-1">⑥</span><b>费用常驻顶栏</b></p>
+        </div>
+      </div>
+
+      <!-- 动线 B -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 class="font-semibold mb-3">核心动线（4 步）</h3>
+        <div class="grid sm:grid-cols-4 gap-2 text-sm">
+          <div class="border rounded-lg p-3"><p class="font-mono text-blue-600 font-bold text-xs mb-1">STEP 1</p><p>点书页右下角 ✏️ 浮钮进入圈选（不用跨到右栏）</p></div>
+          <div class="border rounded-lg p-3"><p class="font-mono text-blue-600 font-bold text-xs mb-1">STEP 2</p><p>在正文上画圈；右栏立刻冒出你的问题气泡（圈选截图缩略 + 可选附言）</p></div>
+          <div class="border rounded-lg p-3"><p class="font-mono text-blue-600 font-bold text-xs mb-1">STEP 3</p><p>回答气泡带引用 chips 和内嵌图解；引用一点，书页滚过去高亮</p></div>
+          <div class="border rounded-lg p-3"><p class="font-mono text-blue-600 font-bold text-xs mb-1">STEP 4</p><p>继续追问直接在右栏打字或再圈一次；图解可钉回书页留锚点</p></div>
+        </div>
+      </div>
+
+      <!-- 关键点落实 B -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 class="font-semibold mb-3">10 条硬性要求在这个方案里怎么做</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-xs text-gray-400 border-b"><th class="py-1.5 pr-3">要求</th><th class="py-1.5">方案 B 的做法</th></tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr><td class="py-2 pr-3 text-gray-500">第一入口是涂写</td><td>书页角 ✏️ 浮钮，画圈即问；右栏输入框只做补充</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">模式开关</td><td>浮钮即开关（书页角落，不占顶栏）；翻页滚轮不受影响</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">圈选后附言</td><td>右栏自动弹出问题气泡，附言可在气泡里补</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">回答贴在书页</td><td>回答在右栏紧挨出现；重要图解可"钉回书页"留锚点</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">展开侧边栏</td><td>不需要——右栏本身就是常驻对话区（天然兜底）</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">引用回跳</td><td>引用 chips 点击 → 左栏滚动 + 高亮闪烁 2 秒</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">图解标注</td><td>图解卡内置"以原文为准"；讲解默认折叠</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">费用与限流</td><td>顶栏常驻；右栏底部可加"今日已生成 N 张"明细</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">目录 / 翻章</td><td>右栏头部"全书地图"可点开任意章节直接跳</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">鼠标 / 触摸板</td><td>浮钮点击 + 拖拽画圈，无快捷键记忆负担</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 优缺点 B -->
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="border-l-4 border-emerald-500 bg-emerald-50 rounded-r-lg p-4">
+          <p class="font-semibold text-emerald-800 mb-2">✔ 优点</p>
+          <ul class="text-sm text-emerald-900 space-y-1.5 list-disc list-inside">
+            <li>AI 永远在视线内，连续追问、跨章查证的动线最短</li>
+            <li>对话流天然完整可回溯，研究式阅读（读书笔记式）最友好</li>
+            <li>分栏布局实现最简单——三个方案里最快能用上的</li>
+            <li>右栏自带"全书地图"，跨章跳转最顺手</li>
+          </ul>
+        </div>
+        <div class="border-l-4 border-red-500 bg-red-50 rounded-r-lg p-4">
+          <p class="font-semibold text-red-800 mb-2">✘ 缺点与风险</p>
+          <ul class="text-sm text-red-900 space-y-1.5 list-disc list-inside">
+            <li>书页宽度被压掉约四成，沉浸阅读体验三个方案里最弱</li>
+            <li>视觉上最接近"传统 AI 对话框"，与"不依赖对话框"的设计初衷张力最大——必须守住"涂写是第一入口"</li>
+            <li>对话流长了以后，右栏滚动管理（自动跟随 / 手动）需要打磨</li>
+          </ul>
+        </div>
+      </div>
+      <details class="bg-white border border-gray-200 rounded-xl p-4">
+        <summary class="text-sm text-gray-500 cursor-pointer">对里程碑的影响与技术细节 ▾</summary>
+        <p class="text-sm text-gray-700 mt-2">M0 壳子：低（标准分栏布局）。M3 挂载：低（回答统一进右栏，不需页边定位；"钉回书页"只是小锚点，可后补）。M2 图解：右栏内嵌 + 钉回锚点。总体实现成本三个方案里最低。</p>
+      </details>
+      <div class="flex gap-2">
+        <button @click="tab='pa'" class="text-sm text-purple-600 hover:underline">← 上一个：方案 A</button>
+        <button @click="tab='pc'" class="text-sm text-emerald-600 hover:underline">下一个：方案 C →</button>
+      </div>
+    </div>
+
+    <!-- ===================== 方案 C ===================== -->
+    <div x-show="tab==='pc'" x-cloak class="space-y-6">
+      <div class="border-l-4 border-emerald-500 bg-emerald-50 rounded-r-lg p-3">
+        <p class="text-sm text-emerald-900"><b>第 2 轮去向：未整体胜出</b>——就地浮卡回溯性弱、两套视觉成本高。但它的招牌<b>"剧场大画布"被采纳</b>：A 便签上的 ⤢ 剧场放大按钮就通向它（D3 已定：小卡内嵌 + 可放大），见「已定方向」。</p>
+      </div>
+      <div class="border-2 border-emerald-200 bg-emerald-50 rounded-xl p-5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="font-mono bg-emerald-600 text-white px-2.5 py-1 rounded text-sm font-bold">方案 C</span>
+          <h2 class="text-xl font-bold text-emerald-900">沉浸浮层 · 平时纯书，一叫就出</h2>
+        </div>
+        <p class="text-emerald-900 mt-3 text-lg">"阅读时屏幕上只有书；AI 平时潜伏，一圈选就地浮出，图解给最大的舞台。"</p>
+        <div class="flex flex-wrap gap-2 mt-3">
+          <span class="bg-white text-emerald-800 border border-emerald-200 rounded-full px-3 py-1 text-xs">零打扰沉浸阅读</span>
+          <span class="bg-white text-emerald-800 border border-emerald-200 rounded-full px-3 py-1 text-xs">就地毛玻璃浮卡</span>
+          <span class="bg-white text-emerald-800 border border-emerald-200 rounded-full px-3 py-1 text-xs">剧场模式大图解</span>
+          <span class="bg-white text-gray-500 border border-gray-200 rounded-full px-3 py-1 text-xs">参照物：macOS Quick Look / 视频剧场模式</span>
+        </div>
+        <div class="mt-4 flex gap-2 flex-wrap">
+          <button @click="tab='final'" class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-full px-4 py-1.5 text-sm font-medium">看剧场放大如何收进最终方案 →</button>
+          <button @click="tab='compare'" class="bg-white border border-emerald-300 text-emerald-800 rounded-full px-4 py-1.5 text-sm hover:bg-emerald-100">先看三案对比</button>
+        </div>
+      </div>
+
+      <!-- 界面示意 C：两态 -->
+      <div>
+        <h3 class="font-semibold mb-2">界面示意：左 = 平时阅读（AI 潜伏），右 = 剧场模式（图解放大）</h3>
+        <div class="overflow-x-auto">
+          <div class="min-w-[680px] grid grid-cols-2 gap-4">
+            <!-- C1 常态 -->
+            <div class="rounded-xl border border-slate-300 shadow-lg overflow-hidden bg-white">
+              <div class="bg-slate-100 border-b border-slate-200 px-3 py-1.5 flex items-center gap-1.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                <span class="ml-3 text-[11px] text-slate-400">平时阅读：只有书 + 一枚悬浮胶囊</span>
+              </div>
+              <div class="h-[360px] relative bg-[#faf9f6]">
+                <!-- 悬浮胶囊 -->
+                <div class="absolute top-2 left-1/2 -translate-x-1/2 glass border border-slate-200 shadow-md rounded-full px-3 py-1 flex items-center gap-2 text-[11px] text-slate-600">
+                  <span class="cal cal-c" style="top:-9px;left:-9px">①</span>
+                  <span>☰ 目录</span><span class="text-slate-300">|</span>
+                  <span class="text-emerald-700 font-medium">✏️ 圈选</span><span class="text-slate-300">|</span>
+                  <span>¥0.42</span>
+                </div>
+                <!-- 书页 -->
+                <div class="absolute inset-x-6 top-12 bottom-4 bg-white border border-slate-200 rounded shadow-sm px-5 py-3 book-serif text-[12.5px] leading-6 text-slate-800">
+                  <p class="text-center text-sm font-bold mb-2">3.2 供给曲线的移动</p>
+                  <p class="mb-2">当生产成本上升时，厂商愿意提供的数量减少，整条供给曲线向左移动。</p>
+                  <p><span class="relative inline scribble">供给减少使均衡价格上升，均衡数量下降。</span><span class="inline-flex items-center gap-1 ml-1 align-middle bg-white border border-emerald-300 shadow-sm rounded-full px-2 py-0.5 text-[10px] text-emerald-700">💬 问 AI</span></p>
+                </div>
+                <!-- 就地浮卡 -->
+                <div class="absolute right-5 top-24 w-44 glass border border-emerald-200 shadow-xl rounded-xl p-2">
+                  <span class="cal cal-c" style="top:-10px;left:-10px">②</span>
+                  <p class="text-[11px] font-bold text-slate-700">图解 · 供给曲线左移</p>
+                  <svg viewBox="0 0 160 110" class="w-full h-auto my-1 bg-white rounded border border-emerald-200">
+                    <line x1="18" y1="8" x2="18" y2="92" stroke="#94a3b8" stroke-width="1.5"/>
+                    <line x1="18" y1="92" x2="150" y2="92" stroke="#94a3b8" stroke-width="1.5"/>
+                    <line x1="30" y1="20" x2="130" y2="80" stroke="#3b82f6" stroke-width="2"/>
+                    <line x1="40" y1="80" x2="130" y2="18" stroke="#10b981" stroke-width="2"/>
+                    <line x1="20" y1="80" x2="110" y2="18" stroke="#10b981" stroke-width="2" stroke-dasharray="4 3" class="s1-blink" opacity="0"/>
+                    <g class="eq-move"><circle cx="82" cy="51" r="3.5" fill="#ef4444"/></g>
+                  </svg>
+                  <div class="flex flex-wrap gap-1 text-[10px]">
+                    <span class="bg-emerald-600 text-white rounded-full px-1.5 py-0.5 relative"><span class="cal cal-c" style="width:16px;height:16px;line-height:16px;font-size:9px;top:-8px;left:-8px">③</span>⤢ 放大</span>
+                    <span class="bg-white border border-slate-300 rounded-full px-1.5 py-0.5 text-slate-600">↗ 原文 P3-12</span>
+                  </div>
+                </div>
+                <!-- 页角图钉 -->
+                <div class="absolute bottom-2 right-2">
+                  <span class="cal cal-c" style="top:-9px;left:-9px">④</span>
+                  <div class="w-9 h-9 rounded-full bg-slate-800 text-white shadow-lg flex items-center justify-center text-[10px] font-medium">3问</div>
+                </div>
+              </div>
+            </div>
+            <!-- C2 剧场 -->
+            <div class="rounded-xl border border-slate-300 shadow-lg overflow-hidden bg-slate-900">
+              <div class="bg-slate-800 border-b border-slate-700 px-3 py-1.5 flex items-center gap-1.5">
+                <span class="text-[11px] text-slate-400">剧场模式：图解的全屏大画布（深色）</span>
+                <span class="ml-auto text-[11px] text-slate-400">✕ 关闭后回到书页，留页角图钉</span>
+              </div>
+              <div class="h-[360px] flex flex-col relative">
+                <div class="flex-1 flex items-center justify-center relative">
+                  <span class="absolute top-2 right-3 text-slate-500 text-lg">✕</span>
+                  <span class="cal cal-c" style="top:10px;left:10px">③</span>
+                  <svg viewBox="0 0 340 190" class="w-[88%] h-auto">
+                    <line x1="30" y1="10" x2="30" y2="160" stroke="#64748b" stroke-width="2"/>
+                    <line x1="30" y1="160" x2="325" y2="160" stroke="#64748b" stroke-width="2"/>
+                    <text x="12" y="16" font-size="12" fill="#94a3b8">P</text>
+                    <text x="318" y="176" font-size="12" fill="#94a3b8">Q</text>
+                    <line x1="55" y1="30" x2="285" y2="140" stroke="#60a5fa" stroke-width="3"/>
+                    <text x="290" y="140" font-size="12" fill="#60a5fa">D</text>
+                    <line x1="75" y1="140" x2="300" y2="32" stroke="#34d399" stroke-width="3"/>
+                    <text x="303" y="34" font-size="12" fill="#34d399">S₀</text>
+                    <line x1="41" y1="140" x2="266" y2="32" stroke="#34d399" stroke-width="3" stroke-dasharray="7 5" class="s1-blink" opacity="0"/>
+                    <text x="238" y="24" font-size="12" fill="#34d399" class="s1-blink" opacity="0">S₁ 供给左移</text>
+                    <line x1="163" y1="82" x2="163" y2="160" stroke="#f87171" stroke-width="1.5" stroke-dasharray="4 3" class="s1-blink" opacity="0"/>
+                    <text x="6" y="94" font-size="11" fill="#94a3b8">P₀</text>
+                    <text x="6" y="80" font-size="11" fill="#f87171" class="s1-blink" opacity="0">P₁ ↑</text>
+                    <g class="eq-move-big"><circle cx="180" cy="90" r="5" fill="#f87171"/></g>
+                    <text x="150" y="180" font-size="11" fill="#f87171" class="s1-blink" opacity="0">价格上升 · 数量下降</text>
+                  </svg>
+                </div>
+                <div class="bg-slate-800 px-3 py-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-300 relative">
+                  <span class="cal cal-c" style="top:-9px;left:80px">⑤</span>
+                  <span>供给左移 → 均衡价 P₀ 升至 P₁，可以拖动 S₁ 试试</span>
+                  <span class="bg-slate-700 rounded-full px-2 py-0.5">辅助理解，以原文为准</span>
+                  <span class="ml-auto flex gap-1.5">
+                    <span class="bg-slate-700 rounded-full px-2 py-0.5">↗ 回到原文 P3-12</span>
+                    <span class="bg-emerald-600 rounded-full px-2 py-0.5">继续追问…</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- 图注 C -->
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 mt-3 text-xs text-gray-700">
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] items-center justify-center mr-1">①</span><b>悬浮胶囊</b>：悬停顶部或按键呼出，目录 / 圈选 / 费用都在这一枚里，平时几乎隐形</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] items-center justify-center mr-1">②</span><b>就地毛玻璃浮卡</b>：圈完就近弹出，不挪走视线；可拖动、可缩成页角图钉</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] items-center justify-center mr-1">③</span><b>剧场模式</b>：一键放大成全屏深色画布，供需曲线可以亲手拖动——交互动画的最大舞台</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] items-center justify-center mr-1">④</span><b>页角图钉</b>：关闭的问答缩成小圆标（显示本章提问数），悬停预览、点开回看</p>
+          <p><span class="inline-flex w-5 h-5 rounded-full bg-emerald-600 text-white text-[11px] items-center justify-center mr-1">⑤</span><b>剧场底栏</b>：标注"以原文为准" + 引用回跳 + 继续追问，深聊时呼出侧栏 overlay</p>
+        </div>
+      </div>
+
+      <!-- 动线 C -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 class="font-semibold mb-3">核心动线（4 步）</h3>
+        <div class="grid sm:grid-cols-4 gap-2 text-sm">
+          <div class="border rounded-lg p-3"><p class="font-mono text-emerald-600 font-bold text-xs mb-1">STEP 1</p><p>按快捷键（或点悬浮胶囊）进入圈选——平时这一步都不需要</p></div>
+          <div class="border rounded-lg p-3"><p class="font-mono text-emerald-600 font-bold text-xs mb-1">STEP 2</p><p>画圈，就地弹出毛玻璃浮卡，先出文字讲解</p></div>
+          <div class="border rounded-lg p-3"><p class="font-mono text-emerald-600 font-bold text-xs mb-1">STEP 3</p><p>图解在浮卡里预览，点"⤢ 放大"进剧场模式：全屏深色画布亲手拖动曲线</p></div>
+          <div class="border rounded-lg p-3"><p class="font-mono text-emerald-600 font-bold text-xs mb-1">STEP 4</p><p>关闭剧场回到书页，问答缩成页角图钉；长聊点"展开"呼出侧栏 overlay</p></div>
+        </div>
+      </div>
+
+      <!-- 关键点落实 C -->
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 class="font-semibold mb-3">10 条硬性要求在这个方案里怎么做</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="text-left text-xs text-gray-400 border-b"><th class="py-1.5 pr-3">要求</th><th class="py-1.5">方案 C 的做法</th></tr></thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr><td class="py-2 pr-3 text-gray-500">第一入口是涂写</td><td>画圈即问，浮卡跟手弹出；没有任何常驻输入区</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">模式开关</td><td>悬浮胶囊里的"✏️ 圈选"项 + 全局快捷键</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">圈选后附言</td><td>浮卡顶部小输入行，留空直接出答案</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">回答贴在书页</td><td>毛玻璃浮卡就近弹出，压在所圈段落旁（会遮正文）</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">展开侧边栏</td><td>浮卡"展开"→ 侧栏 overlay，继承上下文</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">引用回跳</td><td>浮卡与剧场底栏都有"↗ 原文"，点击关闭浮层并高亮</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">图解标注</td><td>浮卡与剧场底栏都带"以原文为准"；剧场是深色视觉，需单独适配</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">费用与限流</td><td>藏进悬浮胶囊，点开看明细（比 A/B 多一层）</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">目录 / 翻章</td><td>胶囊"☰ 目录"，全屏抽屉</td></tr>
+              <tr><td class="py-2 pr-3 text-gray-500">鼠标 / 触摸板</td><td>快捷键 + 拖拽，动线最短；全靠快捷键时学习成本略高</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 优缺点 C -->
+      <div class="grid md:grid-cols-2 gap-4">
+        <div class="border-l-4 border-emerald-500 bg-emerald-50 rounded-r-lg p-4">
+          <p class="font-semibold text-emerald-800 mb-2">✔ 优点</p>
+          <ul class="text-sm text-emerald-900 space-y-1.5 list-disc list-inside">
+            <li>沉浸感三个方案里最强：阅读时界面干净得像没有 AI</li>
+            <li>随手一圈的动线最短，最贴合"想到就问"</li>
+            <li>剧场模式让交互动画（拖供需曲线）发挥最大教学效果——这恰好是本项目生成层的招牌能力</li>
+          </ul>
+        </div>
+        <div class="border-l-4 border-red-500 bg-red-50 rounded-r-lg p-4">
+          <p class="font-semibold text-red-800 mb-2">✘ 缺点与风险</p>
+          <ul class="text-sm text-red-900 space-y-1.5 list-disc list-inside">
+            <li>问答"收起来"了：回溯要多点一层（页角图钉 / 清单），连续追问体验打折</li>
+            <li>浮卡会遮住正文，读长讲解时得挪来挪去</li>
+            <li>常态浅色书页 + 剧场深色画布，两套视觉要缝合好，否则割裂</li>
+            <li>剧场模式是额外交互层，工作量比看起来大</li>
+          </ul>
+        </div>
+      </div>
+      <details class="bg-white border border-gray-200 rounded-xl p-4">
+        <summary class="text-sm text-gray-500 cursor-pointer">对里程碑的影响与技术细节 ▾</summary>
+        <p class="text-sm text-gray-700 mt-2">M0 壳子：低（全屏书页反而简单）。M3 挂载：中（浮层生命周期管理：弹出 / 拖动 / 缩图钉 / 呼出侧栏）。M2 图解：剧场模式 = 额外的大画布渲染态 + 深色主题适配，是本方案的主要增量成本。Agent / 生成 / 书籍层不变。</p>
+      </details>
+      <div class="flex gap-2">
+        <button @click="tab='pb'" class="text-sm text-blue-600 hover:underline">← 上一个：方案 B</button>
+        <button @click="tab='compare'" class="text-sm text-gray-600 hover:underline">三案对比 →</button>
+      </div>
+    </div>
+
+    <!-- ===================== 三案对比 ===================== -->
+    <div x-show="tab==='compare'" x-cloak class="space-y-6">
+      <div class="border-l-4 border-emerald-500 bg-emerald-50 rounded-r-lg p-4">
+        <p class="text-sm text-emerald-900"><b>先说结论的底线：</b>三个方案都完整满足 10 条 UI 硬性要求（见概览），<b>不存在"违规选项"</b>。下面的差异全部是"体验重心放哪"的取舍。</p>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h3 class="font-semibold mb-3">八维度对比</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm min-w-[640px]">
+            <thead>
+              <tr class="border-b-2 text-left">
+                <th class="py-2 pr-3 text-xs text-gray-400 w-36">维度</th>
+                <th class="py-2 pr-3 text-purple-700">A 纸感书桌</th>
+                <th class="py-2 pr-3 text-blue-700">B 双栏工作台</th>
+                <th class="py-2 text-emerald-700">C 沉浸浮层</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <tr><td class="py-2.5 pr-3 text-gray-500">阅读沉浸感</td><td class="py-2.5 pr-3"><span class="text-amber-600 font-medium">中高</span> 书页完整，页边有内容但可忽略</td><td class="py-2.5 pr-3"><span class="text-red-600 font-medium">弱</span> 书页被压窄约四成</td><td class="py-2.5"><span class="text-emerald-600 font-medium">最强</span> 全屏纯书</td></tr>
+              <tr><td class="py-2.5 pr-3 text-gray-500">涂写提问动线</td><td class="py-2.5 pr-3"><span class="text-emerald-600 font-medium">顺</span> 切一次模式，之后随手圈</td><td class="py-2.5 pr-3"><span class="text-emerald-600 font-medium">顺</span> 浮钮即开关</td><td class="py-2.5"><span class="text-emerald-600 font-medium">最短</span> 快捷键 + 随手一圈</td></tr>
+              <tr><td class="py-2.5 pr-3 text-gray-500">问答回溯性</td><td class="py-2.5 pr-3"><span class="text-amber-600 font-medium">中</span> 页边位置记忆 + 章末清单</td><td class="py-2.5 pr-3"><span class="text-emerald-600 font-medium">最好</span> 完整对话流</td><td class="py-2.5"><span class="text-amber-600 font-medium">中</span> 页角图钉 + 清单，多一层</td></tr>
+              <tr><td class="py-2.5 pr-3 text-gray-500">图解动画呈现力</td><td class="py-2.5 pr-3"><span class="text-amber-600 font-medium">中</span> 便签内嵌 + 可放大</td><td class="py-2.5 pr-3"><span class="text-amber-600 font-medium">中</span> 右栏内嵌 + 钉回书页</td><td class="py-2.5"><span class="text-emerald-600 font-medium">最强</span> 剧场全屏深色画布</td></tr>
+              <tr><td class="py-2.5 pr-3 text-gray-500">多轮深聊</td><td class="py-2.5 pr-3"><span class="text-amber-600 font-medium">中</span> 靠侧边栏兜底</td><td class="py-2.5 pr-3"><span class="text-emerald-600 font-medium">最好</span> 右栏即对话区</td><td class="py-2.5"><span class="text-amber-600 font-medium">中</span> 靠侧栏 overlay 兜底</td></tr>
+              <tr><td class="py-2.5 pr-3 text-gray-500">与"别像对话框"初衷的距离</td><td class="py-2.5 pr-3"><span class="text-emerald-600 font-medium">最近</span> 没有任何对话框形态</td><td class="py-2.5 pr-3"><span class="text-red-600 font-medium">最远</span> 常驻面板形似聊天窗</td><td class="py-2.5"><span class="text-emerald-600 font-medium">近</span> 浮卡不是对话框</td></tr>
+              <tr><td class="py-2.5 pr-3 text-gray-500">实现成本</td><td class="py-2.5 pr-3"><span class="text-amber-600 font-medium">中高</span> 页边定位布局最费工</td><td class="py-2.5 pr-3"><span class="text-emerald-600 font-medium">低</span> 最快能用上</td><td class="py-2.5"><span class="text-amber-600 font-medium">中</span> 剧场模式是增量</td></tr>
+              <tr><td class="py-2.5 pr-3 text-gray-500">像谁</td><td class="py-2.5 pr-3">GoodNotes / MarginNote 页边批注</td><td class="py-2.5 pr-3">Notion AI 侧栏 / Edge 分栏</td><td class="py-2.5">macOS Quick Look / 视频剧场模式</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-4">
+        <div class="border rounded-xl p-4">
+          <p class="font-semibold text-sm mb-1">如果你……多数时间在读书</p>
+          <p class="text-sm text-gray-600">想要纸书 + 页边笔记的熟悉感，AI 是"随叫随到的书童"而不是"坐对面的聊天对象" → <b>选 A</b></p>
+          <button @click="tab='final'" class="mt-2 text-xs text-emerald-700 font-medium hover:underline">已定：以 A 为底混搭 → 看合成设计</button>
+        </div>
+        <div class="border rounded-xl p-4">
+          <p class="font-semibold text-sm mb-1">如果你……研究式阅读</p>
+          <p class="text-sm text-gray-600">频繁追问、跨章查证、想把问答留成一份"读书问答录" → <b>选 B</b>（接受书页变窄）</p>
+          <p class="mt-2 text-xs text-gray-400">未整体采纳；对话流以"对话抽屉"形式保留</p>
+        </div>
+        <div class="border rounded-xl p-4">
+          <p class="font-semibold text-sm mb-1">如果你……极致沉浸党</p>
+          <p class="text-sm text-gray-600">最看重阅读不被打扰，且想让交互动画发挥最大效果 → <b>选 C</b>（接受回溯多一层）</p>
+          <p class="mt-2 text-xs text-gray-400">未整体采纳；剧场放大被借入最终方案</p>
+        </div>
+      </div>
+
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-5">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="text-lg">✅</span>
+          <p class="font-semibold text-emerald-900">已拍板（D1 混搭 · 第 2 轮）：A 为底 + C 的剧场放大 + 对话抽屉（默认关闭、手动呼出）</p>
+        </div>
+        <p class="text-sm text-emerald-900">与第 1 轮的默认建议方向一致，并按你的备注追加：常用的对话交互保留，但对话栏默认关闭、手动触发打开——B 的对话流以"对话抽屉"形式进入最终方案。合成设计见「已定方向」标签。</p>
+        <p class="text-xs text-emerald-700 mt-2">唯一遗留：对话抽屉打开后的形态（浮层 / 分栏 / 可钉住）= D4，待定决策页等你拍板。</p>
+      </div>
+    </div>
+
+    <!-- ===================== 待定决策 ===================== -->
+    <div x-show="tab==='decisions'" x-cloak class="space-y-4">
+      <div class="bg-white border border-gray-200 rounded-xl p-4">
+        <p class="text-sm text-gray-700"><b>第 2 轮更新：</b>D1~D3 已按你的选择落定、Q1/Q2 已回答（下方存档为静态卡，不再进入导出）。当前只剩 <b>D4</b> 一个待定项——选完点右下角<b>"复制评审反馈"</b>粘贴回对话发给我；有想法也直接在对话里说，效果一样。</p>
+      </div>
+
+      <!-- D1 已定（第 2 轮） -->
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded text-sm font-bold">D1</span>
+          <span class="font-semibold text-emerald-900">整体选哪个方向？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已定：混搭 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-emerald-800">按你的选择定为混搭：<b>以 A 为底 + 借 C 的剧场放大 + 支持常用的对话交互，但对话栏默认关闭、需要手动触发打开</b>。合成设计见「已定方向」标签。落选说明：B 的常驻分栏压窄书页、形态最像对话框；C 的就地浮卡回溯性弱——两者的优点分别以"对话抽屉"和"剧场放大"的形式保留。</p>
+      </div>
+
+      <!-- D2 已定（第 2 轮） -->
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded text-sm font-bold">D2</span>
+          <span class="font-semibold text-emerald-900">进入一本书时，涂写层默认是什么状态？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已定：默认"阅读"模式 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-emerald-800">按你的选择：打开书默认<b>"阅读"模式</b>，点开关或按 A 键才进入圈选——不会误画，翻页永远顺畅。已画的笔迹和便签在阅读模式下照常显示，只是不能新画。</p>
+      </div>
+
+      <!-- D3 已定（第 2 轮） -->
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded text-sm font-bold">D3</span>
+          <span class="font-semibold text-emerald-900">图解动画生成后，默认以多大呈现？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已定：小卡内嵌 + 可放大 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-emerald-800">按你的选择：图解<b>就近小卡内嵌、自动演示</b>，打断最小；点 ⤢ 进全屏"剧场模式"（借 C），想要大画布时一键就有。</p>
+      </div>
+
+      <!-- D4 待定 -->
+      <div class="border-2 border-dashed border-amber-400 bg-amber-50 rounded-xl p-4" id="cardD4" data-fb="D4" data-title="对话抽屉打开后的形态">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-amber-200 text-amber-900 px-2 py-0.5 rounded text-sm font-bold">D4</span>
+          <span class="font-semibold text-amber-900">对话抽屉打开后，和书页是什么关系？</span>
+          <span class="fb-badge text-xs px-2 py-1 rounded-full font-medium ml-auto bg-amber-100 text-amber-800">等你拍板 · 最后一个</span>
+        </div>
+        <p class="text-xs text-amber-800 mt-1">对话抽屉是最终方案里唯一"借自方案 B"的部分（按你的要求默认关闭、手动呼出）。打开时它和书页的关系是混搭方案里唯一没定的点。</p>
+        <div class="mt-3 grid sm:grid-cols-3 gap-3">
+          <button type="button" onclick="fbPick(this)" data-opt="浮层抽屉"
+            class="fb-opt text-left bg-white rounded-lg p-3 border border-gray-200 hover:border-amber-400 transition">
+            <p class="font-medium text-sm">浮层抽屉：盖在书页上</p>
+            <p class="text-xs text-gray-600 mt-1">看完就收，书页布局永不变化，和"通读优先"最一致（推荐）</p>
+          </button>
+          <button type="button" onclick="fbPick(this)" data-opt="固定分栏"
+            class="fb-opt text-left bg-white rounded-lg p-3 border border-gray-200 hover:border-amber-400 transition">
+            <p class="font-medium text-sm">固定分栏：书页让位变窄</p>
+            <p class="text-xs text-gray-600 mt-1">B 式，打开期间书页压窄约四成；适合长时间挂着聊，布局会跳动</p>
+          </button>
+          <button type="button" onclick="fbPick(this)" data-opt="浮层可钉住"
+            class="fb-opt text-left bg-white rounded-lg p-3 border border-gray-200 hover:border-amber-400 transition">
+            <p class="font-medium text-sm">浮层为主 + 可"钉住"成分栏</p>
+            <p class="text-xs text-gray-600 mt-1">默认浮层，点 📌 钉住变临时分栏；两种都要，实现量最大</p>
+          </button>
+        </div>
+        <input class="fb-note mt-2 w-full text-sm rounded-lg border border-amber-200 bg-white px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-amber-300" placeholder="备注（可选）">
+        <p class="mt-2 text-xs text-amber-700">默认建议：浮层抽屉（书页布局不变，27 寸外屏浮层宽度也足够一栏对话）。不选则按默认建议落实。</p>
+      </div>
+
+      <!-- Q1 已回答（第 2 轮） -->
+      <div class="border-2 border-blue-300 bg-blue-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-sm font-bold">Q1</span>
+          <span class="font-semibold text-blue-900">主力阅读设备和屏幕尺寸？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已回答 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-blue-900">你的回答：<b>27 寸外屏</b>。落实：页边便签区按宽屏设计（可并排 2~3 张便签），同时保留窄屏退化为书页底部堆叠的规则。</p>
+      </div>
+
+      <!-- Q2 已回答（第 2 轮） -->
+      <div class="border-2 border-blue-300 bg-blue-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-sm font-bold">Q2</span>
+          <span class="font-semibold text-blue-900">阅读场景的大致比重？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已回答 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-blue-900">你的回答：<b>沉浸通读 50% / 边读边问 40% / 查询式跳读 10%</b>。落实：默认态向通读优化（书页永远完整、抽屉关闭）；"边读边问"占比高，圈选 → 便签 → 抽屉链路按高频动线打磨（快捷键 A / D）。四状态规格表见「已定方向」。</p>
+      </div>
+
+      <textarea id="fbExtra" rows="3" placeholder="其他意见（可选）：整体性的想法直接写在这里，导出时会一并带上"
+        class="w-full text-sm rounded-xl border border-gray-300 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-300"></textarea>
+    </div>
+
+    <!-- ===================== 迭代记录 ===================== -->
+    <div x-show="tab==='history'" x-cloak class="space-y-4">
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="font-mono bg-slate-800 text-white px-2 py-0.5 rounded text-sm">R2</span>
+          <span class="text-xs text-gray-400">2026-09-01 14:52</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">已采纳</span>
+          <span class="ml-auto flex gap-1 flex-wrap">
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">已定方向</span>
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">方案 A</span>
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">方案 B</span>
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">方案 C</span>
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">三案对比</span>
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">待定决策</span>
+          </span>
+        </div>
+        <blockquote class="mt-3 border-l-4 border-slate-300 bg-slate-50 rounded-r-lg px-4 py-2 text-sm text-slate-700">
+          <span class="text-xs text-slate-400 block mb-1">评审意见（原文）</span>
+          <p class="whitespace-pre-wrap">【评审反馈】《阅读器 UI/UX 三方案》第 1 轮
+D1 整体选哪个方向：选「混搭」（备注：以A为底，借C的剧场放大，同时也支持常用的对话交互，但对话交互栏默认关闭，需要手动触发打开）
+D2 涂写模式的默认态：选「默认阅读模式」
+D3 图解动画的默认呈现：选「小卡内嵌+可放大」
+Q1 主力阅读设备与屏幕：27 寸外屏
+Q2 阅读场景比重：50%沉浸通读，40%边读边问，10%查询式跳读</p>
+        </blockquote>
+        <p class="mt-3 text-sm text-gray-700"><span class="font-medium">本轮修改：</span>D1~D3 全部落定：混搭方向拆解成完整设计，新增「已定方向」标签——A 书桌为底 + 便签 ⤢ 剧场放大 + 默认关闭、手动呼出的对话抽屉，含默认阅读态与抽屉打开态两张界面示意、通读/圈选/深聊/跳读四状态规格表；Q1 按 27 寸外屏落实宽屏页边布局，Q2 按比重落实四状态规格；A/B/C 页加"去向说明"横幅；对比页推荐卡更新为已定结论；待定决策页只剩新开放点 D4（对话抽屉打开后的形态：浮层抽屉 / 固定分栏 / 浮层可钉住），D1~D3、Q1~Q2 转为静态存档卡。</p>
+        <a href="./round-02.html" class="mt-2 inline-block text-xs text-blue-600 hover:underline">查看此轮版本 →</a>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="font-mono bg-slate-800 text-white px-2 py-0.5 rounded text-sm">R1</span>
+          <span class="text-xs text-gray-400">2026-09-01 14:05</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">已采纳</span>
+          <span class="ml-auto flex gap-1 flex-wrap">
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">全部</span>
+          </span>
+        </div>
+        <p class="mt-3 text-sm text-gray-700"><span class="font-medium">本轮产出：</span>首次产出评审草图——基于已定稿的《Agent 辅助阅读器》架构文档，为交互层给出 3 个 UI/UX 候选方向（A 纸感书桌 / B 双栏工作台 / C 沉浸浮层），每个方案带界面示意、核心动线与优缺点；从架构文档推导 10 条 UI 硬性要求作为共同底线；留 3 个待定决策（D1 整体方向、D2 涂写默认态、D3 图解呈现）和 2 个澄清问题（Q1 设备屏幕、Q2 场景比重）。</p>
+        <a href="./round-01.html" class="mt-2 inline-block text-xs text-blue-600 hover:underline">查看此轮版本 →</a>
+      </div>
+    </div>
+  </main>
+
+  <!-- ============ 悬浮导出栏 ============ -->
+  <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-slate-800 text-white rounded-full shadow-xl px-4 py-2 text-sm">
+    <span id="fbCount" class="text-xs text-slate-300"></span>
+    <button onclick="exportFeedback('copy')" class="bg-emerald-500 hover:bg-emerald-400 rounded-full px-3 py-1 font-medium">复制评审反馈</button>
+    <button onclick="exportFeedback('download')" class="bg-white/10 hover:bg-white/20 rounded-full px-3 py-1">下载 .md</button>
+  </div>
+
+  <!-- file:// 下剪贴板兜底弹窗 -->
+  <div id="fbModal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl p-4 w-full max-w-lg">
+      <p class="text-sm font-medium mb-2">自动复制失败，请手动全选复制：</p>
+      <textarea id="fbText" class="w-full h-48 text-xs border rounded-lg p-2" readonly></textarea>
+      <button onclick="document.getElementById('fbModal').classList.add('hidden')" class="mt-2 text-sm text-blue-600">关闭</button>
+    </div>
+  </div>
+
+  <script>
+    const FB_DOC = '阅读器 UI/UX 三方案';
+    const FB_ROUND = 2;
+
+    function fbPick(btn){
+      const card = btn.closest('[data-fb]');
+      card.querySelectorAll('.fb-opt').forEach(b=>{
+        b.classList.remove('fb-selected','border-emerald-500','ring-2','ring-emerald-200');
+        b.classList.add('border-gray-200');
+      });
+      btn.classList.add('fb-selected','border-emerald-500','ring-2','ring-emerald-200');
+      btn.classList.remove('border-gray-200');
+      const badge = card.querySelector('.fb-badge');
+      if(badge){
+        badge.textContent = '已选：' + btn.dataset.opt;
+        badge.className = 'fb-badge text-xs px-2 py-1 rounded-full font-medium ml-auto bg-emerald-100 text-emerald-800';
+      }
+      fbRefresh();
+    }
+    function fbPickById(fbId, optVal){
+      const card = document.querySelector('[data-fb="' + fbId + '"]');
+      if(!card) return;
+      const btn = card.querySelector('[data-opt="' + optVal + '"]');
+      if(btn) fbPick(btn);
+    }
+    function fbRefresh(){
+      const cards = document.querySelectorAll('[data-fb]');
+      let done = 0;
+      cards.forEach(c=>{
+        const picked = !!c.querySelector('.fb-selected');
+        const filled = ((c.querySelector('.fb-answer')||{}).value||'').trim().length > 0;
+        if(picked || filled) done++;
+      });
+      document.getElementById('fbCount').textContent = '已处理 ' + done + '/' + cards.length;
+    }
+    function buildFeedback(){
+      const L = ['【评审反馈】《' + FB_DOC + '》第 ' + FB_ROUND + ' 轮'];
+      document.querySelectorAll('[data-fb]').forEach(c=>{
+        const id = c.dataset.fb, title = c.dataset.title || '';
+        const sel = c.querySelector('.fb-selected');
+        const note = ((c.querySelector('.fb-note')||{}).value||'').trim();
+        const ans = ((c.querySelector('.fb-answer')||{}).value||'').trim();
+        if(c.querySelector('.fb-opt')){
+          L.push(id + ' ' + title + '：' + (sel ? '选「' + sel.dataset.opt + '」' : '未选择（按默认建议）') + (note ? '（备注：' + note + '）' : ''));
+        }else{
+          L.push(id + ' ' + title + '：' + (ans || '（未填写）'));
+        }
+      });
+      const extra = (document.getElementById('fbExtra')||{value:''}).value.trim();
+      if(extra) L.push('其他意见：' + extra);
+      return L.join('\n');
+    }
+    async function exportFeedback(mode){
+      const text = buildFeedback();
+      if(mode === 'download'){
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([text], {type:'text/markdown'}));
+        a.download = '评审反馈_第' + FB_ROUND + '轮.md';
+        a.click();
+        return;
+      }
+      try{
+        await navigator.clipboard.writeText(text);
+        alert('已复制，粘贴回对话发给我即可');
+      }catch(e){
+        document.getElementById('fbText').value = text;
+        document.getElementById('fbModal').classList.remove('hidden');
+      }
+    }
+    document.addEventListener('input', fbRefresh);
+    fbRefresh();
+  </script>
+</body>
+</html>

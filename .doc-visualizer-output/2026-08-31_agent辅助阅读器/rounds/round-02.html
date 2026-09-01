@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent 辅助阅读器 · 评审草图</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak]{display:none!important}
+    .tooltip-term{border-bottom:1px dashed #94a3b8;cursor:help;color:#475569}
+    .fb-opt.fb-selected{border-color:#10b981}
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+  <!-- 顶部 Hero -->
+  <header class="bg-gradient-to-r from-slate-900 to-slate-700 text-white px-6 py-8">
+    <div class="max-w-5xl mx-auto">
+      <p class="text-slate-400 text-sm mb-1">2026-08-31 · 评审草图（非正式文档）</p>
+      <h1 class="text-2xl font-bold mb-2">Agent 辅助阅读器：让 AI 陪你啃硬书</h1>
+      <p class="text-slate-300 max-w-2xl">读专业书最怕看不懂。这个工具让 AI 先把整本书吃透，你读到晦涩的地方，圈一下、写一笔，它就把概念画成图、做成小动画讲给你听。</p>
+      <div class="flex flex-wrap gap-2 mt-4">
+        <span class="bg-white/10 rounded-full px-3 py-1 text-sm">4 条里程碑</span>
+        <span class="bg-red-500/30 rounded-full px-3 py-1 text-sm">3 条红线</span>
+        <span class="bg-emerald-500/30 rounded-full px-3 py-1 text-sm">6 个决策已定</span>
+        <span class="bg-blue-500/30 rounded-full px-3 py-1 text-sm">4 个问题已答</span>
+        <span class="bg-amber-500/30 rounded-full px-3 py-1 text-sm">评审中 · 第 2 轮</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 py-8" x-data="{tab:'overview'}">
+    <!-- 标签导航 -->
+    <div class="flex gap-1 border-b mb-6 overflow-x-auto">
+      <button @click="tab='overview'" :class="tab==='overview'?'border-b-2 border-blue-600 text-blue-600':'text-gray-600'" class="px-4 py-2 text-sm font-medium whitespace-nowrap">概览<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='roadmap'" :class="tab==='roadmap'?'border-b-2 border-blue-600 text-blue-600':'text-gray-600'" class="px-4 py-2 text-sm font-medium whitespace-nowrap">路线图<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='decisions'" :class="tab==='decisions'?'border-b-2 border-blue-600 text-blue-600':'text-gray-600'" class="px-4 py-2 text-sm font-medium whitespace-nowrap">待定决策<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='rules'" :class="tab==='rules'?'border-b-2 border-blue-600 text-blue-600':'text-gray-600'" class="px-4 py-2 text-sm font-medium whitespace-nowrap">红线与风险<span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 更新</span></button>
+      <button @click="tab='history'" :class="tab==='history'?'border-b-2 border-blue-600 text-blue-600':'text-gray-600'" class="px-4 py-2 text-sm font-medium whitespace-nowrap">迭代记录</button>
+    </div>
+
+    <!-- ========== 概览 ========== -->
+    <div x-show="tab==='overview'" x-cloak class="space-y-6">
+
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 class="font-bold text-lg mb-2">这个东西要解决什么</h2>
+        <p class="text-sm text-gray-700">专业书（技术书、教材、论文）读起来费劲：概念抽象、案例离生活远。现在的 AI 工具虽然能聊书，但都是"你打字、它回话"的对话模式，跟读书这个动作是脱节的。这个设计想把 AI 直接缝进阅读页面里：</p>
+        <ul class="mt-2 text-sm text-gray-700 list-disc list-inside space-y-1">
+          <li>AI 把整本书读进去（现在的 AI 能一次性装下上百万字，一本书放得下）；</li>
+          <li>看不懂的地方，AI 把它画成<b>图片</b>和<b>可动手玩的小动画</b>，直接插在书页旁边；</li>
+          <li>你<b>不用打字也能提问</b>：在页面上圈一段、划一道、写个字，AI 就知道你在问哪儿。</li>
+        </ul>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 class="font-bold text-lg mb-3">需求边界（第 2 轮已确认）</h2>
+        <div class="grid sm:grid-cols-2 gap-3 text-sm">
+          <div class="border-l-4 border-blue-400 bg-blue-50 rounded-r-lg p-3">
+            <p class="font-semibold text-blue-900">给谁用：先给自己用</p>
+            <p class="text-xs text-blue-800 mt-1">第一版单机单用户，不做账号、多用户、计费；代码结构预留产品化空间，但不提前实现。</p>
+          </div>
+          <div class="border-l-4 border-blue-400 bg-blue-50 rounded-r-lg p-3">
+            <p class="font-semibold text-blue-900">读什么：金融类书籍</p>
+            <p class="text-xs text-blue-800 mt-1">财务表格、K 线图、公式是解析和图解的重点对象；图解风格偏"图表化讲解"。</p>
+          </div>
+          <div class="border-l-4 border-blue-400 bg-blue-50 rounded-r-lg p-3">
+            <p class="font-semibold text-blue-900">用什么模型：国产阵容</p>
+            <p class="text-xs text-blue-800 mt-1">DeepSeek / Kimi / GLM，预算暂不敏感。按能力分工：长文理解、看图、画图各走各的模型（见"红线与风险" R5）。</p>
+          </div>
+          <div class="border-l-4 border-blue-400 bg-blue-50 rounded-r-lg p-3">
+            <p class="font-semibold text-blue-900">书从哪来：用户自己上传</p>
+            <p class="text-xs text-blue-800 mt-1">不建书库、不做分发，与红线 1 一致；上传的 PDF/EPUB 只服务于本人本次阅读。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 class="font-bold text-lg mb-3">一次完整的阅读长这样</h2>
+        <div class="flex flex-col sm:flex-row items-stretch gap-2 text-center text-sm">
+          <div class="flex-1 bg-slate-100 rounded-lg p-3"><p class="font-semibold">① 打开书</p><p class="text-xs text-gray-500 mt-1">上传 PDF/EPUB，AI 通读全书</p></div>
+          <div class="self-center text-gray-400">→</div>
+          <div class="flex-1 bg-slate-100 rounded-lg p-3"><p class="font-semibold">② 读到卡壳处</p><p class="text-xs text-gray-500 mt-1">比如"久期"看不懂</p></div>
+          <div class="self-center text-gray-400">→</div>
+          <div class="flex-1 bg-amber-50 border border-amber-200 rounded-lg p-3"><p class="font-semibold">③ 圈一下/写一笔</p><p class="text-xs text-gray-500 mt-1">在页面上涂写，不用组织语言</p></div>
+          <div class="self-center text-gray-400">→</div>
+          <div class="flex-1 bg-emerald-50 border border-emerald-200 rounded-lg p-3"><p class="font-semibold">④ 图解出现在页边</p><p class="text-xs text-gray-500 mt-1">一个能拖滑块的小动画讲清概念</p></div>
+          <div class="self-center text-gray-400">→</div>
+          <div class="flex-1 bg-slate-100 rounded-lg p-3"><p class="font-semibold">⑤ 继续读</p><p class="text-xs text-gray-500 mt-1">图解留在原处，随时回看</p></div>
+        </div>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 class="font-bold text-lg mb-3">四层结构（每层只调用下面一层）</h2>
+        <div class="space-y-1 max-w-2xl">
+          <div class="bg-purple-100 border-2 border-purple-300 rounded-lg p-3 text-center">
+            <p class="font-medium">交互层 · 阅读页面 + 涂写层 + 页边图解卡片</p>
+            <p class="text-xs text-purple-700 mt-0.5">你眼睛看到、手碰到的一切：书页、你的圈划笔迹、AI 生成的图解</p>
+          </div>
+          <div class="bg-blue-100 border-2 border-blue-300 rounded-lg p-3 text-center mx-4">
+            <p class="font-medium">Agent 层 · 整书理解 + 看懂你的涂写 + 生成讲解</p>
+            <p class="text-xs text-blue-700 mt-0.5">大脑的所在：按"混合式"记住全书（摘要常驻+当前章装载），看懂你圈了哪儿，决定怎么讲、画什么</p>
+          </div>
+          <div class="bg-green-100 border-2 border-green-300 rounded-lg p-3 text-center mx-8">
+            <p class="font-medium">生成层 · 代码生成小动画 + 文生图兜底</p>
+            <p class="text-xs text-green-700 mt-0.5">AI 现场写一小段网页代码，渲染成能拖滑块玩的小动画；失败时自动降级为静态图片+文字</p>
+          </div>
+          <div class="bg-gray-100 border-2 border-gray-300 rounded-lg p-3 text-center mx-12">
+            <p class="font-medium">书籍层 · PDF/EPUB 解析成结构化章节</p>
+            <p class="text-xs text-gray-600 mt-0.5">把书拆成目录、段落、图表，喂给上面三层用</p>
+          </div>
+          <div class="text-center text-xs text-gray-400 mt-1">↑ 上层只许用下层，不许反着来</div>
+        </div>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <h2 class="font-bold text-lg mb-3">关键数字与前提</h2>
+        <div class="grid sm:grid-cols-3 gap-3 text-sm">
+          <div class="border rounded-lg p-3"><p class="text-2xl font-bold text-blue-700">100 万+</p><p class="text-xs text-gray-600 mt-1">主流 AI 的上下文容量（一次性能记住的字数），装下一整本专业书绰绰有余——这是你提的前提，草图按此成立来设计</p></div>
+          <div class="border rounded-lg p-3"><p class="text-2xl font-bold text-blue-700">2 类</p><p class="text-xs text-gray-600 mt-1">AI 讲解的两种形态：可交互小动画（主力，代码现场生成）和静态图片（兜底，动画生成失败时顶上）</p></div>
+          <div class="border rounded-lg p-3"><p class="text-2xl font-bold text-blue-700">0 打字</p><p class="text-xs text-gray-600 mt-1">目标体验：涂写提问时不强制打字，圈选+一笔就能问</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 路线图 ========== -->
+    <div x-show="tab==='roadmap'" x-cloak class="space-y-4">
+      <p class="text-sm text-gray-600">四条里程碑，按顺序做；每一条做完都是一个"能用"的版本。</p>
+
+      <div x-data="{open:true}" class="border rounded-xl overflow-hidden">
+        <button @click="open=!open" class="w-full flex items-center gap-3 p-4 bg-slate-800 text-white hover:bg-slate-700">
+          <span class="font-mono bg-white/20 px-2 py-0.5 rounded text-sm">M0</span>
+          <span class="font-semibold">能打开书</span>
+          <span class="ml-auto text-xs opacity-70">阅读器壳子 · 基础但最磨人</span>
+          <svg class="w-4 h-4 transition-transform" :class="open&&'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open" class="p-4 space-y-2 bg-slate-50 text-sm">
+          <p class="text-gray-700">目标：上传一本 PDF 或 EPUB，能流畅翻页、点目录跳章节。</p>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>EPUB 解析相对容易（本质是网页打包）；PDF 解析是大坑（见"红线与风险"）</li>
+            <li>把书拆成"目录树 + 段落 + 插图位置"的结构化数据，给后续 AI 用</li>
+            <li>首批测试书目用<b>金融类书籍</b>：重点验证财务表格和 K 线图的解析质量，这两样最容易翻车</li>
+            <li>验收：随手翻、跳章不卡，段落文字可选中</li>
+          </ul>
+        </div>
+      </div>
+
+      <div x-data="{open:false}" class="border rounded-xl overflow-hidden">
+        <button @click="open=!open" class="w-full flex items-center gap-3 p-4 bg-slate-800 text-white hover:bg-slate-700">
+          <span class="font-mono bg-white/20 px-2 py-0.5 rounded text-sm">M1</span>
+          <span class="font-semibold">能聊书</span>
+          <span class="ml-auto text-xs opacity-70">依赖 M0 · 混合式整书理解</span>
+          <svg class="w-4 h-4 transition-transform" :class="open&&'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open" class="p-4 space-y-2 bg-slate-50 text-sm">
+          <p class="text-gray-700">目标：AI 通读全书后，你可以就任意内容提问，回答能指出"书里第几章怎么说的"。</p>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>上下文策略按已定的 D2 采用<b>混合式</b>：全书摘要+目录地图常驻 AI 脑子，读哪章装载哪章原文，需要旁证时再捞其他章节</li>
+            <li>模型用国产阵容：长文理解走 Kimi（长上下文）或 DeepSeek（便宜），回答必须引用原文位置，不许瞎编（红线 2）</li>
+            <li>选中一段话提问是最低形态；涂写提问在 M3 才做</li>
+            <li>验收：问 20 个跨章节的问题，引用出处全部真实可查</li>
+          </ul>
+        </div>
+      </div>
+
+      <div x-data="{open:false}" class="border rounded-xl overflow-hidden">
+        <button @click="open=!open" class="w-full flex items-center gap-3 p-4 bg-slate-800 text-white hover:bg-slate-700">
+          <span class="font-mono bg-white/20 px-2 py-0.5 rounded text-sm">M2</span>
+          <span class="font-semibold">能画图</span>
+          <span class="ml-auto text-xs opacity-70">依赖 M1 · 本设计的灵魂</span>
+          <svg class="w-4 h-4 transition-transform" :class="open&&'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open" class="p-4 space-y-2 bg-slate-50 text-sm">
+          <p class="text-gray-700">目标：对晦涩概念，AI 生成图解卡片插在段落旁边——可交互小动画为主，静态图片兜底。</p>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>动画形态按已定的 D3：AI 现场写一小段网页代码，渲染成能拖滑块、点按钮的小组件（比如拖动"利率"滑块看债券价格怎么动）；生成失败自动降级为静态图+文字讲解</li>
+            <li>生成时机按已定的 D6：随读随生成，同一概念的图解缓存复用、只生成一次</li>
+            <li>每张图解标注"辅助理解，以原文为准"，并可点开看 AI 的讲解文字</li>
+            <li>验收：对 10 个真实晦涩概念生成图解，人工评"确实帮助理解"的比例 ≥ 7/10</li>
+          </ul>
+        </div>
+      </div>
+
+      <div x-data="{open:false}" class="border rounded-xl overflow-hidden">
+        <button @click="open=!open" class="w-full flex items-center gap-3 p-4 bg-slate-800 text-white hover:bg-slate-700">
+          <span class="font-mono bg-white/20 px-2 py-0.5 rounded text-sm">M3</span>
+          <span class="font-semibold">能涂写</span>
+          <span class="ml-auto text-xs opacity-70">依赖 M2 · 交互差异化所在</span>
+          <svg class="w-4 h-4 transition-transform" :class="open&&'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="open" class="p-4 space-y-2 bg-slate-50 text-sm">
+          <p class="text-gray-700">目标：在书页上直接涂写——圈选、划线、随手写——AI 看懂你在指哪儿、问什么。</p>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>页面上盖一层透明画布记录笔迹；理解方式按已定的 D4：把你圈的那一块<b>连书带笔迹截图</b>发给带视觉能力的模型，可选附一句话</li>
+            <li>涂写结果触发 M2 的图解生成，回答出现在你圈的位置旁边（页内为主，深聊可展开侧边栏，按已定的 D5）</li>
+            <li>验收：不做任何打字，纯涂写完成 5 次提问，AI 答对"你指的是哪段"≥ 4 次</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 待定决策（第 2 轮已全部拍板） ========== -->
+    <div x-show="tab==='decisions'" x-cloak class="space-y-4">
+      <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-sm text-emerald-800">
+        第 2 轮反馈已全部落实：<b>6 个决策全部拍板</b>，4 个问题已补充并融入设计。下面是定案记录，仍可继续提意见（对话里说，或用页面底部的导出栏）。
+      </div>
+
+      <!-- D1 已定 -->
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded text-sm font-bold">D1</span>
+          <span class="font-semibold text-emerald-900">做成什么形态的产品？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已定：纯网页应用 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-emerald-800">打开浏览器就能用，上传书即读。落选原因：桌面应用要维护多平台安装包、验证期不值；浏览器插件在 PDF 场景能力弱、受制于宿主页面。后期跑顺了再包桌面壳不迟。</p>
+      </div>
+
+      <!-- D2 已定 -->
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded text-sm font-bold">D2</span>
+          <span class="font-semibold text-emerald-900">整本书怎么装进 AI 的脑子？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已定：混合式 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-emerald-800">全书摘要+目录地图常驻 AI 脑子，读哪章装载哪章原文，需要旁证时再捞其他章节。落选原因：整本常驻每次提问都带着整本书，又贵又慢；纯检索（RAG）会损伤跨章节整体理解。结合国产模型阵容：长文理解走 Kimi（长上下文）或 DeepSeek（低成本），并必须用上各家"上下文缓存"（重复内容只收一次钱）。</p>
+      </div>
+
+      <!-- D3 已定 -->
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded text-sm font-bold">D3</span>
+          <span class="font-semibold text-emerald-900">"动图"用哪种技术生成？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已定：代码生成可交互动画 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-emerald-800">AI 现场写一小段网页代码，渲染成能拖滑块、点按钮的小组件，生成失败自动降级为静态图片+文字讲解。落选原因：纯图片/GIF 不能交互；视频生成分钟级延迟，打断阅读节奏。生成的代码必须关在隔离沙箱里跑（见风险 R2）。</p>
+      </div>
+
+      <!-- D4 已定 -->
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded text-sm font-bold">D4</span>
+          <span class="font-semibold text-emerald-900">你的涂写，怎么让 AI 看懂？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已定：圈选截图+笔迹提示 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-emerald-800">你圈哪儿，就把那一块连书带笔迹截图发给带视觉能力的模型（它能看图），可选附一句话。落选原因：手写识别对潦草字迹不准、违背"零打字"初衷；仅划线+点选意图自由度太低，不算真正的涂写。注意：这条依赖模型视觉能力，见风险 R5。</p>
+      </div>
+
+      <!-- D5 已定 -->
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded text-sm font-bold">D5</span>
+          <span class="font-semibold text-emerald-900">AI 住在页面哪里？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已定：页内为主+侧边栏兜底 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-emerald-800">涂写问答直接长在你涂写的位置旁边，像批注一样留在书里；想深聊时一键展开侧边栏接着聊（上下文自动带上）。落选原因：纯侧边栏回到"对话模式"、和书页脱节，正是本设计要改变的；纯页内则长线追问不方便。</p>
+      </div>
+
+      <!-- D6 已定 -->
+      <div class="border-2 border-emerald-400 bg-emerald-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded text-sm font-bold">D6</span>
+          <span class="font-semibold text-emerald-900">图解什么时候生成？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium ml-auto">已定：随读随生成 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-emerald-800">你问了才生成，同一概念的结果缓存复用、只生成一次。落选原因：开书预生成会给永远没人看的图解白烧钱；"核心概念预生成"要多做一步"判断哪些算核心"，自用阶段不值。</p>
+      </div>
+
+      <!-- 澄清问题（已答） -->
+      <h3 class="font-bold text-lg pt-4">需要你补充的信息（第 2 轮已收到回答）</h3>
+
+      <div class="border-2 border-blue-400 bg-blue-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-sm font-bold">Q1</span>
+          <span class="font-semibold text-blue-900">第一批给谁用、读什么书？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-medium ml-auto">已答 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-blue-800">回答：本人自用，金融相关书籍。已落实：M0 首批测试书目定为金融类，重点验证财务表格与 K 线图解析；图解风格偏图表化讲解。</p>
+      </div>
+
+      <div class="border-2 border-blue-400 bg-blue-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-sm font-bold">Q2</span>
+          <span class="font-semibold text-blue-900">能用哪些 AI 服务？预算量级？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-medium ml-auto">已答 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-blue-800">回答：国产模型（DeepSeek / Kimi / GLM），预算暂不考虑。已落实：模型按能力分工路由（见风险 R5）；成本闸门红线仍然保留——预算不敏感不等于可以无节制生成，缓存与限流照常做。</p>
+      </div>
+
+      <div class="border-2 border-blue-400 bg-blue-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-sm font-bold">Q3</span>
+          <span class="font-semibold text-blue-900">自己用还是做成产品？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-medium ml-auto">已答 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-blue-800">回答：先自己用，之后再考虑产品化。已落实：第一版单机单用户，不做账号、多用户、计费；代码结构预留产品化空间但不提前实现。</p>
+      </div>
+
+      <div class="border-2 border-blue-400 bg-blue-50 rounded-xl p-4">
+        <div class="flex items-center gap-2 flex-wrap">
+          <span class="font-mono bg-blue-200 text-blue-900 px-2 py-0.5 rounded text-sm font-bold">Q4</span>
+          <span class="font-semibold text-blue-900">书从哪来？</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-medium ml-auto">已答 · 第 2 轮</span>
+        </div>
+        <p class="mt-2 text-sm text-blue-800">回答：用户自己上传。已落实：不建书库、不做分发，与红线 1 一致；上传文件只服务于本人本次阅读。</p>
+      </div>
+
+      <textarea id="fbExtra" rows="3" placeholder="其他意见（可选）：整体性的想法直接写在这里，导出时会一并带上" class="w-full text-sm rounded-xl border border-gray-300 bg-white px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-300"></textarea>
+    </div>
+
+    <!-- ========== 红线与风险 ========== -->
+    <div x-show="tab==='rules'" x-cloak class="space-y-4">
+      <h2 class="font-bold text-lg">三条红线（不可触碰）</h2>
+
+      <div class="border-l-4 border-red-500 bg-red-50 rounded-r-lg p-4">
+        <div class="flex items-start gap-3">
+          <span class="text-red-500 text-xl mt-0.5">🚫</span>
+          <div>
+            <p class="font-semibold text-red-800">红线 1：书籍内容不许外流、不建书库</p>
+            <p class="mt-1 text-sm text-red-700">用户的书只用于他自己的阅读会话：不转存分发、不给别人用、不拿去做训练。否则就是盗版传播工具，项目性质直接变质。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="border-l-4 border-red-500 bg-red-50 rounded-r-lg p-4">
+        <div class="flex items-start gap-3">
+          <span class="text-red-500 text-xl mt-0.5">🚫</span>
+          <div>
+            <p class="font-semibold text-red-800">红线 2：AI 讲解不许脱离原书瞎编</p>
+            <p class="mt-1 text-sm text-red-700">所有回答和图解必须锚定书里真实的章节内容，引用要能点回去看原文。图解是"辅助理解的示意图"，必须带"以原文为准"标注——讲错了比不讲更害人。</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="border-l-4 border-red-500 bg-red-50 rounded-r-lg p-4">
+        <div class="flex items-start gap-3">
+          <span class="text-red-500 text-xl mt-0.5">🚫</span>
+          <div>
+            <p class="font-semibold text-red-800">红线 3：生成必须有成本闸门</p>
+            <p class="mt-1 text-sm text-red-700">生成图片和动画都要花钱。必须有缓存（同概念只生成一次）、频率限制、费用可见。预算不敏感期间也保留这道闸门——习惯先养成，免得将来产品化时补洞。</p>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="font-bold text-lg pt-4">实现路上的雷区</h2>
+
+      <div class="space-y-3">
+        <div x-data="{open:false}" class="bg-white border border-gray-200 rounded-xl p-4">
+          <button @click="open=!open" class="flex items-center gap-2 text-amber-800 font-semibold hover:text-amber-600 w-full text-left">
+            <span>⚠️ R1 — PDF 解析是最大的隐藏工作量</span>
+            <span x-text="open?'▲':'▼'" class="text-xs ml-auto"></span>
+          </button>
+          <div x-show="open" class="mt-2 text-sm text-gray-700 pl-6 border-l-2 border-amber-300 space-y-1">
+            <p>扫描版 PDF 没有文字层（要先做文字识别）、双栏排版会读乱顺序、公式和图表经常变成乱码。金融书尤其麻烦：财务表格的单元格对齐、K 线图里的数字标签，都是解析重灾区。</p>
+            <p><strong>规避：</strong>M0 先支持 EPUB 和文字版 PDF，扫描版列为二期；拿 5 本真实的金融书做解析测试再往下走。</p>
+          </div>
+        </div>
+
+        <div x-data="{open:false}" class="bg-white border border-gray-200 rounded-xl p-4">
+          <button @click="open=!open" class="flex items-center gap-2 text-amber-800 font-semibold hover:text-amber-600 w-full text-left">
+            <span>⚠️ R2 — AI 现场写的动画代码会出错</span>
+            <span x-text="open?'▲':'▼'" class="text-xs ml-auto"></span>
+          </button>
+          <div x-show="open" class="mt-2 text-sm text-gray-700 pl-6 border-l-2 border-amber-300 space-y-1">
+            <p>代码生成不是每次都成功，还可能有安全风险（生成的代码在页面里跑）。</p>
+            <p><strong>规避：</strong>生成的代码必须关在隔离沙箱里运行；失败时自动降级成静态图片 + 文字讲解（见 D3 定案）。</p>
+          </div>
+        </div>
+
+        <div x-data="{open:false}" class="bg-white border border-gray-200 rounded-xl p-4">
+          <button @click="open=!open" class="flex items-center gap-2 text-amber-800 font-semibold hover:text-amber-600 w-full text-left">
+            <span>⚠️ R3 — 长上下文不等于便宜和快</span>
+            <span x-text="open?'▲':'▼'" class="text-xs ml-auto"></span>
+          </button>
+          <div x-show="open" class="mt-2 text-sm text-gray-700 pl-6 border-l-2 border-amber-300 space-y-1">
+            <p>百万字每次提问都重算一遍，费用高、首字延迟可能超过 10 秒，阅读心流被打断。</p>
+            <p><strong>规避：</strong>这正是 D2 定为混合式的原因；另外各家国产 API 有"上下文缓存"机制（重复部分只收一次钱），架构上必须用上。</p>
+          </div>
+        </div>
+
+        <div x-data="{open:false}" class="bg-white border border-gray-200 rounded-xl p-4">
+          <button @click="open=!open" class="flex items-center gap-2 text-amber-800 font-semibold hover:text-amber-600 w-full text-left">
+            <span>⚠️ R4 — 触屏涂写和鼠标涂写是两种体验</span>
+            <span x-text="open?'▲':'▼'" class="text-xs ml-auto"></span>
+          </button>
+          <div x-show="open" class="mt-2 text-sm text-gray-700 pl-6 border-l-2 border-amber-300 space-y-1">
+            <p>鼠标画圈容易，平板手写笔的体验要求高得多（压感、延迟、防误触）。</p>
+            <p><strong>规避：</strong>第一版以鼠标/触摸板为目标，手写笔优化列入后期；涂写层要能和翻页手势共存（圈选模式开关）。</p>
+          </div>
+        </div>
+
+        <div x-data="{open:false}" class="bg-white border border-gray-200 rounded-xl p-4">
+          <button @click="open=!open" class="flex items-center gap-2 text-amber-800 font-semibold hover:text-amber-600 w-full text-left">
+            <span>⚠️ R5 — 涂写截图依赖"能看图"的模型，国产阵容要按能力分工</span>
+            <span class="ml-1 text-xs px-1.5 py-0.5 rounded bg-emerald-500 text-white align-middle">R2 新增</span>
+            <span x-text="open?'▲':'▼'" class="text-xs ml-auto"></span>
+          </button>
+          <div x-show="open" class="mt-2 text-sm text-gray-700 pl-6 border-l-2 border-amber-300 space-y-1">
+            <p>D4 定为"圈选截图+笔迹提示"，前提是模型能看懂图。国产阵容里各家能力不同：DeepSeek 主系列是文本模型（看不懂截图），Kimi 和 GLM 有视觉版本。路由选错 = AI 根本看不懂你圈了什么。</p>
+            <p><strong>规避：</strong>模型路由按能力分工——整书长文本理解走 Kimi（长上下文）或 DeepSeek（便宜）；涂写截图理解走 Kimi/GLM 的视觉版本；画图走文生图服务。M3 动手前先实测视觉模型对"书页+手写笔迹"截图的识别率。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 迭代记录 ========== -->
+    <div x-show="tab==='history'" x-cloak class="space-y-4">
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="font-mono bg-slate-800 text-white px-2 py-0.5 rounded text-sm">R2</span>
+          <span class="text-xs text-gray-400">2026-08-31</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">已采纳</span>
+          <span class="ml-auto flex gap-1 flex-wrap">
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">概览</span>
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">路线图</span>
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">待定决策</span>
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">红线与风险</span>
+          </span>
+        </div>
+        <blockquote class="mt-3 border-l-4 border-slate-300 bg-slate-50 rounded-r-lg px-4 py-2 text-sm text-slate-700" style="white-space:pre-line">
+          <span class="text-xs text-slate-400 block mb-1">评审意见（原文）</span>
+          【评审反馈】《Agent 辅助阅读器》第 1 轮
+D1 做成什么形态的产品：选「纯网页应用」
+D2 整书理解怎么装：选「混合式」
+D3 动图怎么生成：选「代码生成可交互动画」
+D4 涂写怎么让 AI 看懂：选「圈选截图+笔迹提示」
+D5 AI 住在页面哪里：选「页内为主+侧边栏兜底」
+D6 图解何时生成：选「随读随生成」
+Q1 首批读者和书型：我自己，金融相关书籍
+Q2 可用的模型与预算：国产模型（deepseek/kimi/glm），预算暂不考虑
+Q3 个人用还是产品：先自己用，之后再考虑做成产品
+Q4 书从哪来：用户自己上传</blockquote>
+        <p class="mt-3 text-sm text-gray-700"><span class="font-medium">本轮修改：</span>6 个决策全部按你的选择落定，决策卡转为"已定"静态卡；按 Q1~Q4 的回答在概览新增"需求边界"板块（本人自用先行、金融书、国产模型、用户上传），M0~M3 的实现口径同步更新；红线与风险新增 R5（截图理解依赖视觉模型，按能力分工路由），R1 补充金融书图表解析难点。</p>
+        <a href="./round-02.html" class="mt-2 inline-block text-xs text-blue-600 hover:underline">查看此轮版本 →</a>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-xl p-5">
+        <div class="flex items-center gap-3 flex-wrap">
+          <span class="font-mono bg-slate-800 text-white px-2 py-0.5 rounded text-sm">R1</span>
+          <span class="text-xs text-gray-400">2026-08-31</span>
+          <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-medium">已采纳</span>
+          <span class="ml-auto flex gap-1 flex-wrap">
+            <span class="text-xs bg-blue-50 text-blue-700 rounded-full px-2 py-0.5">全部</span>
+          </span>
+        </div>
+        <p class="mt-3 text-sm text-gray-700"><span class="font-medium">本轮修改：</span>首次产出评审草图：确定四层结构（交互 / Agent / 生成 / 书籍）与 M0~M3 四条里程碑，留了 6 个待定决策（D1 产品形态、D2 整书理解方式、D3 动图生成技术、D4 涂写理解方式、D5 AI 位置、D6 生成时机）和 4 个澄清问题（Q1 首批读者、Q2 模型与预算、Q3 个人或产品、Q4 书籍来源）。</p>
+        <a href="./round-01.html" class="mt-2 inline-block text-xs text-blue-600 hover:underline">查看此轮版本 →</a>
+      </div>
+    </div>
+  </main>
+
+  <!-- 悬浮导出栏 -->
+  <div class="fixed bottom-4 right-4 z-50 flex items-center gap-2 bg-slate-800 text-white rounded-full shadow-xl px-4 py-2 text-sm">
+    <span id="fbCount" class="text-xs text-slate-300"></span>
+    <button onclick="exportFeedback('copy')" class="bg-emerald-500 hover:bg-emerald-400 rounded-full px-3 py-1 font-medium">复制评审反馈</button>
+    <button onclick="exportFeedback('download')" class="bg-white/10 hover:bg-white/20 rounded-full px-3 py-1">下载 .md</button>
+  </div>
+
+  <!-- file:// 下剪贴板可能失败：兜底弹窗手动复制 -->
+  <div id="fbModal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl p-4 w-full max-w-lg">
+      <p class="text-sm font-medium mb-2">自动复制失败，请手动全选复制：</p>
+      <textarea id="fbText" class="w-full h-48 text-xs border rounded-lg p-2" readonly></textarea>
+      <button onclick="document.getElementById('fbModal').classList.add('hidden')" class="mt-2 text-sm text-blue-600">关闭</button>
+    </div>
+  </div>
+
+  <script>
+  const FB_DOC = 'Agent 辅助阅读器';
+  const FB_ROUND = 2;
+
+  function fbPick(btn){
+    const card = btn.closest('[data-fb]');
+    card.querySelectorAll('.fb-opt').forEach(b=>{
+      b.classList.remove('fb-selected','border-emerald-500','ring-2','ring-emerald-200');
+      b.classList.add('border-gray-200');
+    });
+    btn.classList.add('fb-selected','border-emerald-500','ring-2','ring-emerald-200');
+    btn.classList.remove('border-gray-200');
+    const badge = card.querySelector('.fb-badge');
+    if(badge){
+      badge.textContent = '已选：' + btn.dataset.opt;
+      badge.className = 'fb-badge text-xs px-2 py-1 rounded-full font-medium ml-auto bg-emerald-100 text-emerald-800';
+    }
+    fbRefresh();
+  }
+  function fbRefresh(){
+    const cards = document.querySelectorAll('[data-fb]');
+    const counter = document.getElementById('fbCount');
+    if(cards.length === 0){ counter.textContent = ''; return; }
+    let done = 0;
+    cards.forEach(c=>{
+      const picked = !!c.querySelector('.fb-selected');
+      const filled = ((c.querySelector('.fb-answer')||{}).value||'').trim().length > 0;
+      if(picked || filled) done++;
+    });
+    counter.textContent = '已处理 ' + done + '/' + cards.length;
+  }
+  function buildFeedback(){
+    const L = ['【评审反馈】《' + FB_DOC + '》第 ' + FB_ROUND + ' 轮'];
+    document.querySelectorAll('[data-fb]').forEach(c=>{
+      const id = c.dataset.fb, title = c.dataset.title || '';
+      const sel = c.querySelector('.fb-selected');
+      const note = ((c.querySelector('.fb-note')||{}).value||'').trim();
+      const ans = ((c.querySelector('.fb-answer')||{}).value||'').trim();
+      if(c.querySelector('.fb-opt')){
+        L.push(id + ' ' + title + '：' + (sel ? '选「' + sel.dataset.opt + '」' : '未选择（按默认建议）') + (note ? '（备注：' + note + '）' : ''));
+      }else{
+        L.push(id + ' ' + title + '：' + (ans || '（未填写）'));
+      }
+    });
+    const extra = (document.getElementById('fbExtra')||{value:''}).value.trim();
+    if(extra) L.push('其他意见：' + extra);
+    return L.join('\n');
+  }
+  async function exportFeedback(mode){
+    const text = buildFeedback();
+    if(mode === 'download'){
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([text], {type:'text/markdown'}));
+      a.download = '评审反馈_第' + FB_ROUND + '轮.md';
+      a.click();
+      return;
+    }
+    try{
+      await navigator.clipboard.writeText(text);
+      alert('已复制，粘贴回对话发给我即可');
+    }catch(e){
+      document.getElementById('fbText').value = text;
+      document.getElementById('fbModal').classList.remove('hidden');
+    }
+  }
+  document.addEventListener('input', fbRefresh);
+  fbRefresh();
+  </script>
+</body>
+</html>
