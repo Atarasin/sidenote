@@ -169,7 +169,7 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
           box.style.height = `${Math.max(u.bottom - u.top, 1)}px`;
           // 段落盒本身不参与选区/命中，仅作锚点载体；span 负责选中
           box.style.pointerEvents = "none";
-          itemIdxs.forEach((i) => place(items[i], box, u));
+          for (const i of itemIdxs) place(items[i], box, u);
           if (chapter) registry.register(para.id, box, chapter.id);
           layer.appendChild(box);
         }
