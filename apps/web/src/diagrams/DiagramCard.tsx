@@ -3,11 +3,14 @@
  *
  * 状态机（上游 §3.4 主链路）：生成中 → 交互组件 →（沙箱检测失败 → 自动修复重试 1 次）
  * →（仍失败 → 静态图降级，标注不变）→ 限流显式提示（禁止静默失败）。
+ * 失败计数封顶（sandboxFailAction）：第 1 次失败修复、第 2 次起必降级，
+ * 杜绝「修复返回同一坏组件 → 再失败 → 再修复」的死循环（评审 D2）。
  * 标注行「辅助理解，以原文为准」必带（红线 2）；讲解默认折叠可展开。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import SandboxFrame from "./SandboxFrame";
 import { createDiagram, degradeDiagram } from "./api";
+import { sandboxFailAction } from "./failAction";
 import type { DiagramPayload } from "./types";
 
 type Phase = "generating" | "repairing" | "degrading" | "interactive" | "degraded" | "limited";
@@ -37,6 +40,20 @@ export default function DiagramCard({
   const [explainOpen, setExplainOpen] = useState(false);
   const [limitedInfo, setLimitedInfo] = useState<string>("");
   const started = useRef(false);
+  const failCount = useRef(0);
+
+  const degrade = useCallback(() => {
+    setPhase("degrading");
+    return degradeDiagram(bookId, { paraId, concept })
+      .then((d) => {
+        setDiagram(d);
+        setPhase("degraded");
+      })
+      .catch(() => {
+        // 降级请求本身失败：退到无图讲解态（后端缓存里可能有早前降级产物）
+        setPhase("degraded");
+      });
+  }, [bookId, paraId, concept]);
 
   const request = useCallback(
     async (stage: "first" | "repair", failReason = "") => {
@@ -49,47 +66,58 @@ export default function DiagramCard({
       if ("limited" in result) {
         setLimitedInfo(`${result.detail}（${result.rateLimit.used}/${result.rateLimit.limit}）`);
         setPhase("limited");
-        return;
+        return result;
       }
       setDiagram(result);
       if (result.kind === "degraded") {
         setPhase("degraded"); // 缓存里已是降级态
-      } else if (stage === "first") {
-        setPhase("interactive");
-      } else {
+      } else if (result.kind === "interactive" && result.componentHtml) {
         setPhase("interactive");
       }
+      // kind === "incomplete"（产物不完整/引用未过校验）：不进 interactive，
+      // 由调用方按失败处置（修复或降级），绝不渲染空组件白屏（评审 D1）
+      return result;
     },
     [bookId, paraId, concept],
   );
 
+  const handleFail = useCallback(
+    (reason: string) => {
+      setFailNote(reason);
+      failCount.current += 1;
+      if (sandboxFailAction(failCount.current) === "repair") {
+        setPhase("repairing");
+        void request("repair", reason)
+          .then((r) => {
+            if (r && !("limited" in r) && r.kind === "incomplete") handleFail(reason);
+          })
+          .catch(() => degrade());
+      } else {
+        void degrade(); // T2.2.3 → T2.3.2：修复仍失败，静态图降级
+      }
+    },
+    [request, degrade],
+  );
+
+  // started 守卫：依赖数组完整（StrictMode 双跑安全），但首请求只发一次
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    void request("first").catch(() => {
-      setFailNote("生成请求失败");
-      setPhase("degrading");
-    });
-  }, [request]);
+    void request("first")
+      .then((r) => {
+        if (r && !("limited" in r) && r.kind === "incomplete") handleFail("生成产物不完整");
+      })
+      .catch(() => {
+        setFailNote("生成请求失败");
+        void degrade();
+      });
+  }, [request, degrade, handleFail]);
 
-  // 沙箱失败 → 自动重试 1 次（T2.2.3）→ 仍失败 → 降级（T2.3.2）
   const onSandboxFail = useCallback(
     (reason: string) => {
-      setFailNote(reason);
-      if (phase === "interactive") {
-        setPhase("repairing");
-        void request("repair", reason).then((/* ok */) => undefined);
-      } else if (phase === "repairing") {
-        setPhase("degrading");
-        void degradeDiagram(bookId, { paraId, concept })
-          .then((d) => {
-            setDiagram(d);
-            setPhase("degraded");
-          })
-          .catch(() => setPhase("degraded"));
-      }
+      if (phase === "interactive" || phase === "repairing") handleFail(reason);
     },
-    [phase, request, bookId, paraId, concept],
+    [phase, handleFail],
   );
 
   const onSandboxReady = useCallback(() => {

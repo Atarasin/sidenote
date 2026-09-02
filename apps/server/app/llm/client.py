@@ -121,6 +121,7 @@ class LLMClient:
             status=f"error:{last_error.kind}",
             book_id=book_id,
             purpose=purpose,
+            extra={"sessionId": session_id} if session_id else None,  # 失败调用也归入会话统计
         )
         raise last_error
 

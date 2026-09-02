@@ -2,7 +2,8 @@
 
 - T2.7.1：10 个真实晦涩概念生成图解（mock 确定性组件；人工评审「确实帮助理解」≥7/10
   属用户侧清单——见缺陷清单文档，真实模型配置后按同一清单复验）。
-- T2.7.2：失败注入测试——动画生成失败场景 100% 有降级输出。
+- T2.7.2：失败注入测试——生成产物不完整/引用未过校验/文生图不可达/讲解异常等
+  场景逐类注入，100% 有降级输出（含纯文字降级与原文摘录兜底）。
 - T2.7.3：缓存测试——同一概念二次请求 100% 命中缓存、零新增生成调用。
 """
 
@@ -92,20 +93,81 @@ async def test_10_concepts_generate_valid_diagrams(env) -> None:
 
 
 # ---------- T2.7.2：失败注入 → 100% 降级 ----------
+# 场景逐类注入（评审 D6：不得用同一个垃圾响应冒充多种场景）：
+#   A 响应非 JSON           → incomplete → 修复仍失败 → degrade
+#   B 组件为空（componentHtml 缺失）→ incomplete → …
+#   C 引用未过校验（quote 与原文不符）→ incomplete → …
+#   D 文生图服务不可达      → degrade 纯文字讲解（无静态图）
+#   E 讲解模型异常          → degrade 讲解退化为原文摘录
+#   F 生成产物不完整绝不缓存为 interactive（评审 D0：空产物缓存毒化白屏）
 
 
-class _FailBackend:
-    """注入：返回无法产出组件的垃圾内容（模拟动画生成失败）。"""
+class _RawBackend:
+    """按脚本回放 content 的注入后端。script: 每次调用依次出队一个响应。"""
 
     provider = "failinject"
 
-    def __init__(self) -> None:
+    def __init__(self, script: list[str]) -> None:
+        self.script = list(script)
         self.calls = 0
 
     async def chat(self, role, messages, **kwargs):
         self.calls += 1
-        content = "这不是 JSON，也没有组件。"
+        content = self.script.pop(0) if self.script else "兜底垃圾响应"
         return type("R", (), {"content": content})()
+
+
+class _ExplodingBackend:
+    """讲解调用直接抛 ModelError（其余按脚本回放）。"""
+
+    provider = "failinject"
+
+    def __init__(self) -> None:
+        from app.llm.errors import ModelError
+
+        self._kind = ModelError("provider", "注入的讲解失败")
+
+    async def chat(self, role, messages, **kwargs):
+        raise self._kind
+
+
+class _T2IBackend:
+    """真实 provider 的文生图后端（可注入故障 transport）。"""
+
+    provider = "cogview"
+
+    def __init__(self, transport=None) -> None:
+        self.config = {
+            "endpoint": "https://t2i.invalid/v1",
+            "api_key": "",
+            "model": "cogview-test",
+            "price": {"per_image": 0.06},
+            "_transport": transport,
+        }
+
+
+_COMPONENTLESS = '{"componentHtml": "", "summary": "没图", "citations": []}'
+_BAD_CITATION = (
+    '{"componentHtml": "<svg>曲线</svg>", "summary": "有图", '
+    '"citations": [{"paraId": "c001-p0001", "quote": "原文里不存在的一句话"}]}'
+)
+
+
+async def _degrade_all_injected(storage, doc, para_id: str, concept: str, fail_backend):
+    """注入后端走完 首答→修复→降级 全链，返回降级产物。"""
+    good = MockLLMClient(UsageLog(storage), responder=mock_behaviors.dispatch)
+    limiter = RateLimiter(storage, limit=50)
+    first = await diagram_service.generate_diagram(
+        storage, fail_backend, doc.meta.bookId, para_id, concept, limiter=limiter
+    )
+    assert first.kind == "incomplete", "产物不完整必须是显式 incomplete，不得伪装 interactive"
+    repair = await diagram_service.generate_diagram(
+        storage, fail_backend, doc.meta.bookId, para_id, concept, limiter=limiter, repair=True
+    )
+    assert repair.kind == "incomplete"
+    return await diagram_service.degrade_diagram(
+        storage, good, good, doc.meta.bookId, para_id, concept
+    )
 
 
 @pytest.mark.asyncio
@@ -115,37 +177,143 @@ async def test_failure_injection_always_degrades(tmp_path) -> None:
     storage = Storage(tmp_path)
     storage.ensure_layout()
     doc = _make_book(storage)
-    usage_log = UsageLog(storage)
-    good = MockLLMClient(usage_log, responder=mock_behaviors.dispatch)
-    fail = _FailBackend()
-    limiter = RateLimiter(storage, limit=50)
 
-    degraded_count = 0
-    scenarios = ["空渲染", "脚本错误", "渲染超时", "组件缺失", "JSON 解析失败"]
-    for i, scenario in enumerate(scenarios):
+    scenarios: list[tuple[str, _RawBackend]] = [
+        ("响应非 JSON", _RawBackend(["这不是 JSON，也没有组件。"] * 4)),
+        ("组件为空", _RawBackend([_COMPONENTLESS] * 4)),
+        ("引用未过校验", _RawBackend([_BAD_CITATION] * 4)),
+    ]
+    for i, (scenario, backend) in enumerate(scenarios):
         para_id = f"c001-p{i + 1:04d}"
         concept = f"失败概念{i}"
-        # 首答 + 修复重试都失败（注入后端）
-        for repair in (False, True):
-            await diagram_service.generate_diagram(
-                storage,
-                fail,
-                doc.meta.bookId,
-                para_id,
-                concept,
-                limiter=limiter,
-                repair=repair,
-                fail_reason=scenario,
-            )
-        # 前端检测到二次失败 → 降级（讲解用 good 后端，静态图 mock 生成）
-        degraded = await diagram_service.degrade_diagram(
-            storage, good, good, doc.meta.bookId, para_id, concept
-        )
+        degraded = await _degrade_all_injected(storage, doc, para_id, concept, backend)
         assert degraded.kind == "degraded", f"{scenario} 场景必须有降级输出"
         assert degraded.staticImage, f"{scenario} 降级必须带静态图"
         assert degraded.explanation, f"{scenario} 降级必须带文字讲解"
-        degraded_count += 1
-    assert degraded_count == len(scenarios)  # 100% 有降级输出
+
+
+@pytest.mark.asyncio
+async def test_incomplete_result_never_cached_as_interactive(tmp_path) -> None:
+    """评审 D0：空产物落缓存后，后续请求也拿到 incomplete（而非空 interactive 白屏）。"""
+    from app.storage import Storage
+
+    storage = Storage(tmp_path)
+    storage.ensure_layout()
+    doc = _make_book(storage)
+    backend = _RawBackend([_COMPONENTLESS] * 4)
+    limiter = RateLimiter(storage, limit=50)
+
+    first = await diagram_service.generate_diagram(
+        storage, backend, doc.meta.bookId, "c001-p0001", "毒化概念", limiter=limiter
+    )
+    assert first.kind == "incomplete" and first.componentHtml == ""
+    # 全新会话再请求：命中的是 incomplete 缓存，前端可据此走修复/降级，永不白屏
+    second = await diagram_service.generate_diagram(
+        storage, backend, doc.meta.bookId, "c001-p0001", "毒化概念", limiter=limiter
+    )
+    assert second.cached is True
+    assert second.kind == "incomplete" and second.componentHtml == ""
+
+
+@pytest.mark.asyncio
+async def test_degrade_t2i_failure_falls_back_to_text(tmp_path) -> None:
+    """评审 D4：文生图服务不可达 → 纯文字讲解降级，绝不 500。"""
+    import httpx
+    from app.storage import Storage
+
+    storage = Storage(tmp_path)
+    storage.ensure_layout()
+    doc = _make_book(storage)
+    usage_log = UsageLog(storage)
+    good = MockLLMClient(usage_log, responder=mock_behaviors.dispatch)
+
+    def boom(request):
+        raise httpx.ConnectError("注入：文生图服务不可达")
+
+    t2i = _T2IBackend(transport=httpx.MockTransport(boom))
+    degraded = await diagram_service.degrade_diagram(
+        storage, good, t2i, doc.meta.bookId, "c001-p0001", "降级概念",
+        session_id="s-t2i", usage_log=usage_log,
+    )
+    assert degraded.kind == "degraded"
+    assert degraded.staticImage == "", "文生图失败应退化为纯文字讲解（无静态图）"
+    assert degraded.explanation, "纯文字降级必须保留讲解"
+    assert degraded.summary == "（纯文字讲解）"
+    # 费用可见（红线 3）：失败的文生图调用也入账
+    static_calls = [e for e in usage_log.read_all() if e["purpose"] == "diagram_static"]
+    assert len(static_calls) == 1 and static_calls[0]["status"].startswith("error:")
+    assert static_calls[0]["sessionId"] == "s-t2i"
+
+
+@pytest.mark.asyncio
+async def test_degrade_t2i_success_records_flat_cost(tmp_path) -> None:
+    """文生图成功：按张计价入账（costCny=per_image，token 恒 0）。"""
+    import httpx
+    from app.storage import Storage
+
+    storage = Storage(tmp_path)
+    storage.ensure_layout()
+    doc = _make_book(storage)
+    usage_log = UsageLog(storage)
+    good = MockLLMClient(usage_log, responder=mock_behaviors.dispatch)
+
+    png = b"\x89PNG\r\n\x1a\nfake"
+
+    def handler(request):
+        if request.url.path.endswith("generations"):
+            return httpx.Response(200, json={"data": [{"url": "https://t2i.invalid/v1/img"}]})
+        return httpx.Response(200, content=png)
+
+    t2i = _T2IBackend(transport=httpx.MockTransport(handler))
+    degraded = await diagram_service.degrade_diagram(
+        storage, good, t2i, doc.meta.bookId, "c001-p0002", "计费概念",
+        session_id="s-ok", usage_log=usage_log,
+    )
+    assert degraded.kind == "degraded" and degraded.staticImage.endswith(".png")
+    calls = [e for e in usage_log.read_all() if e["purpose"] == "diagram_static"]
+    assert len(calls) == 1
+    assert calls[0]["status"] == "ok" and calls[0]["costCny"] == 0.06
+
+
+@pytest.mark.asyncio
+async def test_degrade_explain_failure_uses_excerpt(tmp_path) -> None:
+    """评审 D4/E：讲解模型异常 → 退化为原文摘录（仍有降级输出）。"""
+    from app.storage import Storage
+
+    storage = Storage(tmp_path)
+    storage.ensure_layout()
+    doc = _make_book(storage)
+    usage_log = UsageLog(storage)
+    good = MockLLMClient(usage_log, responder=mock_behaviors.dispatch)
+
+    degraded = await diagram_service.degrade_diagram(
+        storage, _ExplodingBackend(), good, doc.meta.bookId, "c001-p0003", "讲解失败概念"
+    )
+    assert degraded.kind == "degraded"
+    para = doc.chapters[0].paras[2]
+    assert degraded.explanation == para.text[:120]  # 原文摘录兜底
+    assert degraded.staticImage, "讲解失败不影响静态图"
+
+
+@pytest.mark.asyncio
+async def test_mock_static_svg_escapes_concept(tmp_path) -> None:
+    """评审 D9：mock 静态图中的概念必须 XML 转义（防非法 SVG/注入）。"""
+    from app.storage import Storage
+
+    storage = Storage(tmp_path)
+    storage.ensure_layout()
+    doc = _make_book(storage)
+    usage_log = UsageLog(storage)
+    good = MockLLMClient(usage_log, responder=mock_behaviors.dispatch)
+
+    degraded = await diagram_service.degrade_diagram(
+        storage, good, good, doc.meta.bookId, "c001-p0004", "a<b&c"
+    )
+    assert degraded.staticImage
+    svg = (
+        storage.diagrams_dir(doc.meta.bookId) / "files" / degraded.staticImage.split("/")[-1]
+    ).read_text(encoding="utf-8")
+    assert "a&lt;b&amp;c" in svg and "a<b&c" not in svg
 
 
 # ---------- T2.7.3：同概念二次请求 100% 命中缓存 ----------

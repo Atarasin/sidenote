@@ -12,7 +12,7 @@ import json
 import re
 
 from ..llm.errors import ModelError
-from ..llm.types import ChatMessage
+from ..llm.types import ChatMessage, UsageInfo
 from ..qa.service import validate_citations
 from .models import (
     DiagramResult,
@@ -31,6 +31,9 @@ class DiagramLimited(Exception):
     def __init__(self, state: RateState) -> None:
         super().__init__("已达本会话生成频率上限，请稍后再试")
         self.state = state
+
+
+_EMPTY_USAGE = UsageInfo()  # 文生图按张计费，token 用量恒为 0
 
 
 def _parse_component_json(content: str) -> dict | None:
@@ -121,12 +124,13 @@ async def generate_diagram(
         result.summary = summary or "（见图解）"
         result.citations = citations
     else:
-        # 生成产物不完整 → 视为一次失败尝试（前端可 repair 或 degrade）
+        # 产物不完整（组件为空/引用未过校验）→ 显式 incomplete 态：绝不能伪装成
+        # interactive 落缓存（否则前端拿到空组件白屏且永不触发修复/降级，评审 P0）
+        result.kind = "incomplete"
         result.componentHtml = ""
         result.summary = summary
         result.citations = []
-        result.kind = "interactive"
-    save_cached(storage, result)
+    save_cached(storage, result)  # attempts 计数需跨请求持久化（修复封顶依据）
     return result
 
 
@@ -137,8 +141,15 @@ async def degrade_diagram(
     book_id: str,
     para_id: str,
     concept: str,
+    *,
+    session_id: str = "local",
+    usage_log=None,
 ) -> DiagramResult:
-    """静态图降级（计划 T2.3.2）：重试仍失败 → 静态图 + 文字讲解；降级态写入缓存。"""
+    """静态图降级（计划 T2.3.2）：重试仍失败 → 静态图 + 文字讲解；降级态写入缓存。
+
+    静态图再失败 → 纯文字讲解降级（staticImage 为空），讲解失败 → 原文摘录。
+    任何一层失败都不外抛：降级链路自身必须兜底（评审 D4）。
+    """
     doc = storage.read_bookdoc(book_id)
     if doc is None:
         raise FileNotFoundError(f"书籍未解析：{book_id}")
@@ -172,24 +183,46 @@ async def degrade_diagram(
             ],
             book_id=book_id,
             purpose="diagram_explain",
+            session_id=session_id,
         )
         explanation = explain.content.strip()[:400]
     except ModelError:
         explanation = para.text[:120]  # 讲解失败退化为原文摘录
 
-    # 2) 静态图（文生图服务；mock 生成确定性 SVG）
+    # 2) 静态图（文生图服务；mock 生成确定性 SVG；失败返回空 → 纯文字降级）
     image_rel = await render_static_image(
-        t2i_backend, storage, book_id, cache_key, normalized, para.text
+        t2i_backend, storage, book_id, cache_key, normalized, para.text,
+        session_id=session_id, usage_log=usage_log,
     )
 
     result.kind = "degraded"
     result.componentHtml = ""
     result.staticImage = image_rel
     result.explanation = explanation
-    result.summary = result.summary or "（静态图解）"
+    result.summary = result.summary or ("（静态图解）" if image_rel else "（纯文字讲解）")
     result.provider = getattr(backend, "provider", "")
     save_cached(storage, result)
     return result
+
+
+def _record_static_usage(
+    usage_log, *, t2i_backend, model: str, status: str, session_id: str
+) -> None:
+    """文生图调用记账（红线 3 费用可见）：按张计价，走 extra.costCny 覆盖 token 计费。"""
+    if usage_log is None:
+        return
+    price = (getattr(t2i_backend, "config", {}) or {}).get("price") or {}
+    per_image = float(price.get("per_image", 0) or 0)
+    usage_log.record(
+        role="text_to_image",
+        provider=getattr(t2i_backend, "provider", "unknown"),
+        model=model,
+        usage=_EMPTY_USAGE,
+        duration_ms=0,
+        status=status,
+        purpose="diagram_static",
+        extra={"sessionId": session_id, "costCny": per_image if status == "ok" else 0.0},
+    )
 
 
 async def render_static_image(
@@ -199,8 +232,16 @@ async def render_static_image(
     cache_key: str,
     concept: str,
     para_text: str,
+    *,
+    session_id: str = "local",
+    usage_log=None,
 ) -> str:
-    """文生图（T2.3.1）：真实服务（CogView）返回图片 URL/bytes；mock 生成确定性 SVG。"""
+    """文生图（T2.3.1）：真实服务（CogView）返回图片 URL/bytes；mock 生成确定性 SVG。
+
+    任何失败都返回空串（由调用方退化为纯文字讲解），绝不外抛（评审 D4）。
+    """
+    from xml.sax.saxutils import escape as xml_escape
+
     provider = getattr(t2i_backend, "provider", "mock")
     if provider == "mock":
         # 离线确定性静态图：透明背景、currentColor 不可用于 <img>，改深浅双适配的中性色
@@ -213,32 +254,47 @@ async def render_static_image(
     <line x1='90' y1='190' x2='380' y2='60' stroke='#b91c1c'/>
     <circle cx='235' cy='125' r='6' fill='#334155'/>
   </g>
-  <text x='70' y='250' font-size='16' fill='#334155'>{concept}（静态示意）</text>
+  <text x='70' y='250' font-size='16' fill='#334155'>{xml_escape(concept)}（静态示意）</text>
 </svg>"""
         out_dir = storage.diagrams_dir(book_id) / "files"
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / f"{cache_key}.svg").write_text(svg, encoding="utf-8")
+        _record_static_usage(
+            usage_log, t2i_backend=t2i_backend, model="mock-t2i",
+            status="ok", session_id=session_id,
+        )
         return f"files/{cache_key}.svg"
 
     # 真实文生图服务：CogView（OpenAI 兼容 images/generations）
     import httpx
 
-    cfg = getattr(t2i_backend, "config", {})
+    cfg = getattr(t2i_backend, "config", {}) or {}
     endpoint = str(cfg.get("endpoint", "")).rstrip("/")
     api_key = str(cfg.get("api_key", ""))
     model = str(cfg.get("model", "cogview-3-plus"))
-    prompt = f"经济学概念示意插图：{concept}。扁平风格，浅色背景，简洁标注。"
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            f"{endpoint}/images/generations",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={"model": model, "prompt": prompt},
+    t2i_prompt = f"经济学概念示意插图：{concept}。扁平风格，浅色背景，简洁标注。"
+    try:
+        async with httpx.AsyncClient(timeout=60, transport=cfg.get("_transport")) as client:
+            resp = await client.post(
+                f"{endpoint}/images/generations",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={"model": model, "prompt": t2i_prompt},
+            )
+            resp.raise_for_status()
+            url = resp.json()["data"][0]["url"]
+            img = await client.get(url)
+            img.raise_for_status()
+    except Exception as exc:  # 网络/限流/响应结构异常 → 纯文字降级，不外抛
+        _record_static_usage(
+            usage_log, t2i_backend=t2i_backend, model=model,
+            status=f"error:{type(exc).__name__}", session_id=session_id,
         )
-        resp.raise_for_status()
-        url = resp.json()["data"][0]["url"]
-        img = await client.get(url)
-        img.raise_for_status()
+        return ""
     out_dir = storage.diagrams_dir(book_id) / "files"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / f"{cache_key}.png").write_bytes(img.content)
+    _record_static_usage(
+        usage_log, t2i_backend=t2i_backend, model=model,
+        status="ok", session_id=session_id,
+    )
     return f"files/{cache_key}.png"

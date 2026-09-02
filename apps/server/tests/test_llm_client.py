@@ -86,9 +86,11 @@ async def test_auth_error_not_retried(storage) -> None:
 
     client = make_client(handler, usage_log)
     with pytest.raises(ModelAuthError):
-        await client.chat("long_text_qa", [ChatMessage("user", "q")])
+        await client.chat("long_text_qa", [ChatMessage("user", "q")], session_id="s-fail")
     assert calls["n"] == 1  # 鉴权错误立即失败，不重试
-    assert usage_log.read_all()[0]["status"] == "error:auth"
+    entry = usage_log.read_all()[0]
+    assert entry["status"] == "error:auth"
+    assert entry["sessionId"] == "s-fail"  # 评审 D11：失败调用也归入会话统计
 
 
 @pytest.mark.asyncio

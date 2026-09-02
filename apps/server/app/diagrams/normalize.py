@@ -24,5 +24,9 @@ def normalize_concept(raw: str) -> str:
     text = re.sub(r"[\s\u3000]+", "", text)
     text = re.sub(r"[（(].*?[)）]", "", text)  # 去括号注释
     text = text.lower()
-    text = text.rstrip("的概念").rstrip("概念")
+    # 只删整段后缀（rstrip 是按字符集删除，会误削「看得见的」这类概念，评审 D12）
+    for suffix in ("的概念", "概念"):
+        if text.endswith(suffix) and len(text) > len(suffix):
+            text = text[: -len(suffix)]
+            break
     return _SYNONYMS.get(text, text)

@@ -41,6 +41,14 @@ def test_normalize_concept_synonyms() -> None:
     )
 
 
+def test_normalize_concept_suffix_edge_cases() -> None:
+    """评审 D12：rstrip 按字符集删除会误削「看得见的」这类以『的』收尾的概念。"""
+    assert normalize_concept("机会成本的概念") == "机会成本"
+    assert normalize_concept("机会成本概念") == "机会成本"
+    assert normalize_concept("看得见的") == "看得见的"  # 不得削成「看得见」
+    assert normalize_concept("概念") == "概念"  # 整词即后缀时不自删成空串
+
+
 # ---------- T2.1.2 生成主链路 ----------
 
 
@@ -229,6 +237,9 @@ def test_diagram_api_flow(client, storage, tiny_epub) -> None:
     static_path = degraded.json()["staticImage"]
     img = client.get(f"/api/books/{book_id}/diagrams-files/{static_path.split('/')[-1]}")
     assert img.status_code == 200
+    # 评审 D13：不存在的书不允许借 diagrams-files 探测文件系统
+    ghost = client.get(f"/api/books/{'0' * 16}/diagrams-files/{static_path.split('/')[-1]}")
+    assert ghost.status_code == 404
 
     summary = client.get("/api/usage/summary", params={"sessionId": "web"})
     assert summary.status_code == 200

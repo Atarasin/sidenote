@@ -15,7 +15,7 @@ export interface DiagramPayload {
   paraId: string;
   concept: string;
   normalized: string;
-  kind: "interactive" | "degraded";
+  kind: "interactive" | "incomplete" | "degraded";
   componentHtml: string;
   staticImage: string;
   explanation: string;

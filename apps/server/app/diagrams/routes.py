@@ -111,7 +111,14 @@ async def degrade(book_id: str, payload: DegradeRequest, request: Request):
     try:
         qa_backend, t2i_backend = _backends(request)
         result = await degrade_diagram(
-            storage, qa_backend, t2i_backend, book_id, payload.paraId, payload.concept
+            storage,
+            qa_backend,
+            t2i_backend,
+            book_id,
+            payload.paraId,
+            payload.concept,
+            session_id=payload.sessionId,
+            usage_log=request.app.state.usage_log,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -134,6 +141,8 @@ def get_diagram(book_id: str, para_id: str, concept: str, request: Request):
 @router.get("/{book_id}/diagrams-files/{file_name}")
 def get_diagram_file(book_id: str, file_name: str, request: Request) -> FileResponse:
     storage = request.app.state.storage
+    if storage.read_meta(book_id) is None:
+        raise HTTPException(status_code=404, detail="书籍不存在")
     if not _FILE_RE.match(file_name):
         raise HTTPException(status_code=400, detail="非法的图解文件名")
     path = storage.diagrams_dir(book_id) / "files" / file_name

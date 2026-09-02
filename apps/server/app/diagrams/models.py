@@ -17,7 +17,7 @@ class DiagramResult(BaseModel):
     paraId: str
     concept: str
     normalized: str
-    kind: Literal["interactive", "degraded"] = "interactive"
+    kind: Literal["interactive", "incomplete", "degraded"] = "interactive"
     componentHtml: str = ""
     staticImage: str = ""  # 降级静态图 URL（相对 /api/books/{id}/diagrams-files/）
     explanation: str = ""  # 降级时的文字讲解 / 交互版的折叠讲解

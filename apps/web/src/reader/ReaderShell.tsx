@@ -72,10 +72,10 @@ export default function ReaderShell({
           >
             💬 对话
           </span>
-          {/* 费用显示占位（M2 / U6 接入） */}
+          {/* 费用显示占位（消费 /api/usage/summary 的实装在 M3 S3.5） */}
           <span
             className="hidden rounded-lg border border-dashed border-stone-300 px-2 py-1 sm:inline-block"
-            title="费用与限流将在 M2 接入"
+            title="费用与限流将在 M3 接入"
           >
             ¥0.00 · 本会话
           </span>

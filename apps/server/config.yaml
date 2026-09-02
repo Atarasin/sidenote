@@ -33,4 +33,6 @@ models:
     cogview:
       endpoint: https://open.bigmodel.cn/api/paas/v4
       model: cogview-3-plus
-      price: { input_per_m: 0, output_per_m: 0, cache_hit_per_m: 0 }  # 按张计费，M2 接入时补登记
+      # 按张计费（元/张）：per_image 用于降级静态图记账（token 三项恒 0）。
+      # 官网价格若有调整，在 config.local.yaml 覆盖即可，不改此文件。
+      price: { input_per_m: 0, output_per_m: 0, cache_hit_per_m: 0, per_image: 0.06 }
