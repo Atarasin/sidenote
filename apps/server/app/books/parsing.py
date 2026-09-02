@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from .models import BookDoc
 
@@ -25,14 +25,24 @@ class ParseContext:
 
 Parser = Callable[[Path, ParseContext], BookDoc]
 
-# 格式 → 解析器。Slice 0.2 填充：epub / pdf。
+# 格式 → 解析器。懒加载填充（epub / pdf），避免模块级循环依赖。
 PARSERS: dict[str, Parser] = {}
+
+
+def _ensure_parsers_loaded() -> dict[str, Parser]:
+    if not PARSERS:
+        from . import epub_parser, pdf_parser
+
+        PARSERS.update({"epub": epub_parser.parse_epub, "pdf": pdf_parser.parse_pdf})
+    return PARSERS
 
 
 def detect_format(file_name: str, head: bytes) -> str:
     """按扩展名 + 文件头判定格式；无法识别时抛 ParseError。"""
     lower = file_name.lower()
-    if lower.endswith(".epub") and head.startswith(b"PK"):
+    if lower.endswith(".epub") or head.startswith(b"PK\x03\x04"):
+        if not lower.endswith(".epub") and not head.startswith(b"PK"):
+            raise ParseError("无法识别的文件格式（仅支持 EPUB / 文字版 PDF）")
         return "epub"
     if lower.endswith(".pdf") or head.startswith(b"%PDF"):
         return "pdf"
@@ -40,7 +50,7 @@ def detect_format(file_name: str, head: bytes) -> str:
 
 
 def parse_book_file(path: Path, fmt: str, ctx: ParseContext) -> BookDoc:
-    parser = PARSERS.get(fmt)
+    parser = _ensure_parsers_loaded().get(fmt)
     if parser is None:
         raise ParseError(f"{fmt} 解析器尚未注册")
     return parser(path, ctx)

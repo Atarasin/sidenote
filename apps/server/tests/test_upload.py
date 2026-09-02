@@ -1,7 +1,4 @@
-"""上传接口（计划 T0.1.3）：落盘、格式校验、哈希去重入口、解析状态流转。
-
-Slice 0.1 阶段解析器尚未注册（Slice 0.2 落地），故上传后状态为 failed（诚实状态，不静默）。
-"""
+"""上传接口（计划 T0.1.3 + T0.2.6）：落盘、格式校验、哈希去重入口、解析状态流转。"""
 
 from __future__ import annotations
 
@@ -21,7 +18,7 @@ def test_health(client) -> None:
     assert resp.json()["ok"] is True
 
 
-def test_upload_epub_lands_and_records_parse_failure(client, storage, tiny_epub) -> None:
+def test_upload_epub_parses_to_success(client, storage, tiny_epub) -> None:
     resp = _upload(client, tiny_epub)
     assert resp.status_code == 201
     meta = resp.json()
@@ -33,12 +30,30 @@ def test_upload_epub_lands_and_records_parse_failure(client, storage, tiny_epub)
     assert source.is_file()
     assert Storage.sha256_file(source) == meta["fileHash"]
 
-    # Slice 0.1 无解析器 → failed（Slice 0.2 接入后此断言更新）
+    # 后台解析完成：状态 success，元数据来自书内
+    refreshed = client.get(f"/api/books/{meta['bookId']}").json()
+    assert refreshed["parseStatus"] == "success", refreshed.get("parseError")
+    assert refreshed["title"] == "极小经济学（测试用书）"
+    assert refreshed["parasCount"] == 3
+
+    # bookdoc 可得，且段落 ID 稳定（c001-p0001 起）
+    doc = client.get(f"/api/books/{meta['bookId']}/bookdoc").json()
+    assert [p["id"] for p in doc["chapters"][0]["paras"]] == [
+        "c001-p0001",
+        "c001-p0002",
+        "c001-p0003",
+    ]
+    assert doc["toc"] and doc["toc"][0]["chapterId"] == "c001"
+
+
+def test_upload_broken_pdf_marks_failed(client, tiny_pdf) -> None:
+    resp = _upload(client, tiny_pdf)
+    assert resp.status_code == 201
+    meta = resp.json()
     refreshed = client.get(f"/api/books/{meta['bookId']}").json()
     assert refreshed["parseStatus"] == "failed"
-    assert "解析器尚未注册" in refreshed["parseError"]
-
-    # bookdoc 在解析成功前不可得
+    assert refreshed["parseError"]
+    # 解析失败时 bookdoc 不可得（409 而非 404：书存在但未就绪）
     assert client.get(f"/api/books/{meta['bookId']}/bookdoc").status_code == 409
 
 
@@ -65,9 +80,11 @@ def test_upload_pdf_detected_by_header(client, tmp_path) -> None:
 
 
 def test_upload_same_file_dedupes(client, tiny_epub) -> None:
-    first = _upload(client, tiny_epub)
-    second = _upload(client, tiny_epub)
-    assert first.json()["bookId"] == second.json()["bookId"]
+    first = _upload(client, tiny_epub).json()
+    second = _upload(client, tiny_epub).json()
+    assert first["bookId"] == second["bookId"]
+    books = client.get("/api/books").json()
+    assert len(books) == 1
 
 
 def test_get_missing_book_404(client) -> None:
