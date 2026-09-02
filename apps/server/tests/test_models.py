@@ -18,7 +18,7 @@ def test_example_matches_json_schema() -> None:
     jsonschema.validate(EXAMPLE, SCHEMA)
 
 
-def test_example_matches_pydic_model() -> None:
+def test_example_matches_pydantic_model() -> None:
     doc = BookDoc.model_validate(EXAMPLE)
     assert doc.chapters[0].paras[0].id == "c001-p0001"
 

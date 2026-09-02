@@ -36,6 +36,7 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
   const [renderError, setRenderError] = useState<string | null>(null);
 
   // 加载文档
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 文档加载只随书籍实例重建
   useEffect(() => {
     registry.clear();
     const task = pdfjs.getDocument(`/api/books/${bookId}/source`);
@@ -56,10 +57,10 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
       docRef.current?.destroy();
       docRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
 
   // 渲染当前页（canvas + 锚点文本层）
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 页渲染随页码/缩放/文档重建
   useEffect(() => {
     const pdf = docRef.current;
     const canvas = canvasRef.current;
@@ -81,7 +82,9 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
         canvas.height = Math.floor(viewport.height);
         canvas.style.width = `${Math.floor(viewport.width)}px`;
         canvas.style.height = `${Math.floor(viewport.height)}px`;
-        const task = page.render({ canvasContext: canvas.getContext("2d")!, viewport });
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("无法获取 canvas 2d 上下文");
+        const task = page.render({ canvasContext: ctx, viewport });
         renderTask = task;
         await task.promise;
         if (cancelled) return;
@@ -103,26 +106,38 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
           paras.map((p) => p.text),
         );
 
-        const place = (
-          item: { str: string; transform: number[]; width: number },
-          parent: HTMLElement,
-        ) => {
-          const span = document.createElement("span");
+        // 先量测（绝对页坐标），再创建段落盒，最后按段落盒原点相对放置 span。
+        // 顺序不可颠倒：span 必须拿到已定位的段落盒原点，否则选中层会整体偏移。
+        const measure = (item: { str: string; transform: number[]; width: number }) => {
           const tx = pdfjs.Util.transform(viewport.transform, item.transform);
           const fontHeight = Math.hypot(tx[2], tx[3]) || 12;
-          span.textContent = item.str;
-          span.style.position = "absolute";
           const left = tx[4];
           const top = tx[5] - fontHeight;
-          const parentRect = parent === layer ? { left: 0, top: 0 } : parent.dataset;
-          const relLeft = left - Number(parentRect.left || 0);
-          const relTop = top - Number(parentRect.top || 0);
-          span.style.left = `${relLeft}px`;
-          span.style.top = `${relTop}px`;
-          span.style.fontSize = `${fontHeight}px`;
+          return {
+            left,
+            top,
+            right: left + item.width * viewport.scale,
+            bottom: top + fontHeight,
+            fontHeight,
+          };
+        };
+
+        const place = (
+          item: { str: string; transform: number[]; width: number },
+          box: HTMLElement,
+          origin: { left: number; top: number },
+        ) => {
+          const g = measure(item);
+          const span = document.createElement("span");
+          span.textContent = item.str;
+          span.style.position = "absolute";
+          span.style.left = `${g.left - origin.left}px`;
+          span.style.top = `${g.top - origin.top}px`;
+          span.style.fontSize = `${g.fontHeight}px`;
           span.style.whiteSpace = "pre";
-          parent.appendChild(span);
-          return { left, top, right: left + item.width * viewport.scale, bottom: top + fontHeight };
+          span.style.pointerEvents = "auto";
+          box.appendChild(span);
+          return g;
         };
 
         const unionBox = (
@@ -138,30 +153,27 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
         const groupedItems = new Set<number>();
         for (const [paraIdx, itemIdxs] of groups) {
           const para = paras[paraIdx];
+          const geometries = itemIdxs.map((i) => {
+            groupedItems.add(i);
+            return measure(items[i]);
+          });
+          const u = unionBox(geometries);
           const box = document.createElement("div");
           box.className = "pdf-para";
           box.setAttribute("data-paraid", para.id);
-          const boxes = itemIdxs.map((i) => {
-            groupedItems.add(i);
-            return place(items[i], box);
-          });
-          const u = unionBox(boxes);
-          Object.assign(box.dataset, { left: String(u.left), top: String(u.top) });
           box.style.position = "absolute";
           box.style.left = `${u.left}px`;
           box.style.top = `${u.top}px`;
           box.style.width = `${Math.max(u.right - u.left, 1)}px`;
           box.style.height = `${Math.max(u.bottom - u.top, 1)}px`;
-          // 段落盒子本身不参与选区/命中，仅作锚点载体
+          // 段落盒本身不参与选区/命中，仅作锚点载体；span 负责选中
           box.style.pointerEvents = "none";
-          for (const child of [...box.children]) {
-            (child as HTMLElement).style.pointerEvents = "auto";
-          }
-          registry.register(para.id, box, chapter!.id);
+          itemIdxs.forEach((i, k) => place(items[i], box, geometries[k]));
+          if (chapter) registry.register(para.id, box, chapter.id);
           layer.appendChild(box);
         }
         for (let i = 0; i < items.length; i++) {
-          if (!groupedItems.has(i)) place(items[i], layer);
+          if (!groupedItems.has(i)) place(items[i], layer, { left: 0, top: 0 });
         }
 
         if (chapter) onChapterChange?.(chapter);
@@ -189,7 +201,6 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
         /* 任务已结束 */
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId, pageNo, zoom, numPages]);
 
   // 翻页快捷键

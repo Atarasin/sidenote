@@ -125,7 +125,15 @@ export default function ReaderShell({ title, chapter, toc, onJump, children }: P
           <nav className="h-[calc(100%-2.75rem)] overflow-y-auto px-2 pb-4">
             <ul className="space-y-0.5">
               {toc.map((item) => (
-                <TocNode key={item.id} item={item} depth={0} onJump={onJump} />
+                <TocNode
+                  key={item.id}
+                  item={item}
+                  depth={0}
+                  onJump={(i) => {
+                    onJump(i);
+                    setTocOpen(false);
+                  }}
+                />
               ))}
             </ul>
           </nav>

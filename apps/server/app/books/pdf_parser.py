@@ -78,10 +78,10 @@ def parse_pdf(path, ctx: ParseContext) -> BookDoc:
         figure_zones = _extract_figures(doc, ctx)
         lines = _drop_figure_text(page_lines, figure_zones)
         chapters = _build_chapters(lines, boundaries, body_size, ctx)
+        meta = _build_meta(doc, ctx)
 
     if not chapters or not any(ch.paras for ch in chapters):
         raise ParseError("未从 PDF 中重组出任何正文段落")
-    meta = _build_meta(doc, ctx)
     figures = _figures_from_zones(figure_zones, boundaries)
     toc = [
         TocItem(id=f"toc-{i:03d}", title=b.title, chapterId=make_chapter_id(b.chapter_index))

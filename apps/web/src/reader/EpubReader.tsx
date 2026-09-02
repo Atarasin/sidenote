@@ -48,6 +48,7 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
   const chaptersByHref = useRef(new Map<string, Chapter>());
   const [renderError, setRenderError] = useState<string | null>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 渲染器生命周期只随书籍实例（bookId）重建
   useEffect(() => {
     const container = viewRef.current;
     if (!container) return;
@@ -77,6 +78,12 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
         el.setAttribute("data-paraid", para.id);
         registry.register(para.id, el, chapter.id);
       });
+      // 跳转落点：跨章带 paraId 的跳转在目标章渲染完成后滚到对应段落
+      const target = pendingPara.current ? registry.get(pendingPara.current) : undefined;
+      if (pendingPara.current && target && target.chapterId === chapter.id) {
+        scrollElIntoEpubPage(target.el);
+        pendingPara.current = null;
+      }
     };
 
     // epub.js 的 rendered 事件载荷为 (section, view)；文档在 view.contents 上
@@ -143,7 +150,6 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
       registry.clear();
     };
     // 仅随书籍实例重建（doc/registry 由父组件按 bookId 保证对应）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId]);
 
   useImperativeHandle(handleRef, () => ({

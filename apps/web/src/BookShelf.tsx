@@ -1,13 +1,13 @@
 import type { BookFileMeta } from "@shared/types/bookdoc";
 /**
- * 入口页（M0）：上传书籍 + 打开已解析的书。
- * 阅读壳在 Slice 0.3/0.4 接入（#/read/<bookId> 路由）。
+ * 书架入口页（M0）：上传书籍 + 打开已解析的书（#/read/<bookId>）。
+ * 有书在解析中时轮询刷新，直到全部到达终态。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listBooks, uploadBook } from "./api";
 import { formatBytes, parseStatusLabel } from "./lib/format";
 
-export default function App() {
+export default function BookShelf() {
   const [books, setBooks] = useState<BookFileMeta[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,8 +22,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
+
+  // 解析中的书：轮询直到终态（大书解析需要时间，「打开」按钮依赖状态更新）
+  const hasPending = books.some((b) => b.parseStatus === "pending" || b.parseStatus === "parsing");
+  useEffect(() => {
+    if (!hasPending) return;
+    const timer = window.setInterval(() => void refresh(), 1200);
+    return () => window.clearInterval(timer);
+  }, [hasPending, refresh]);
 
   const onUpload = async (file: File) => {
     setUploading(true);

@@ -1,4 +1,4 @@
-"""书籍解析分发层：格式检测 + 解析器注册表（解析器实现在 Slice 0.2 落地）。"""
+"""书籍解析分发层：格式检测 + 解析器注册表（epub / pdf）。"""
 
 from __future__ import annotations
 

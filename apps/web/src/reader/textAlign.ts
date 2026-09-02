@@ -91,12 +91,13 @@ export function groupItemsByParas(
   const stream = chars.map((c) => c.ch).join("");
 
   let cursor = 0;
-  paraTexts.forEach((para, paraIdx) => {
+  for (let paraIdx = 0; paraIdx < paraTexts.length; paraIdx++) {
+    const para = paraTexts[paraIdx];
     const t = stripWs(normalizeParaText(para));
-    if (!t) return;
+    if (!t) continue;
     const k = stream.indexOf(t, cursor);
     if (k === -1 || k > cursor + searchWindow) {
-      return; // 本段在该页无完整对应（跨页断开等），不锚定
+      continue; // 本段在该页无完整对应（跨页断开等），不锚定
     }
     const end = k + t.length;
     const itemIdxs: number[] = [];
@@ -108,10 +109,12 @@ export function groupItemsByParas(
     }
     groups.set(paraIdx, itemIdxs);
     cursor = end;
-  });
+  }
 
   const grouped = new Set<number>();
-  for (const idxs of groups.values()) idxs.forEach((i) => grouped.add(i));
+  for (const idxs of groups.values()) {
+    for (const i of idxs) grouped.add(i);
+  }
   for (let idx = 0; idx < items.length; idx++) {
     if (!grouped.has(idx)) leftover.push(idx);
   }
