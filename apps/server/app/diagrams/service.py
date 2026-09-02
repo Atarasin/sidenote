@@ -292,6 +292,12 @@ async def render_static_image(
         return ""
     out_dir = storage.diagrams_dir(book_id) / "files"
     out_dir.mkdir(parents=True, exist_ok=True)
+    if not img.content:  # HTTP 200 空 body：不入库不记账为 ok（评审 N2）
+        _record_static_usage(
+            usage_log, t2i_backend=t2i_backend, model=model,
+            status="error:empty_body", session_id=session_id,
+        )
+        return ""
     (out_dir / f"{cache_key}.png").write_bytes(img.content)
     _record_static_usage(
         usage_log, t2i_backend=t2i_backend, model=model,

@@ -46,12 +46,15 @@ export default function Theater({ diagram, bookId, onClose, onJumpToPara, onFoll
               title={`剧场 · ${diagram.concept}`}
             />
           </div>
-        ) : (
+        ) : diagram.staticImage ? (
           <img
             src={`/api/books/${bookId}/diagrams-files/${diagram.staticImage.split("/").pop()}`}
             alt={`${diagram.concept} 静态图解`}
             className="max-h-[70vh] max-w-5xl object-contain"
           />
+        ) : (
+          // 纯文字降级（文生图也失败时的兜底形态，评审 N1）
+          <p className="max-w-2xl text-sm leading-6 text-slate-200">{diagram.explanation}</p>
         )}
       </div>
 
