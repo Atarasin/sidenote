@@ -211,3 +211,57 @@ def test_ask_api_endpoint(client, storage, tiny_epub) -> None:
     assert body["hasBasis"] is True
     assert body["citations"], "回答必须带引用（红线 2）"
     assert body["citations"][0]["paraId"].startswith("c001")
+
+
+@pytest.mark.asyncio
+async def test_retry_round_keeps_original_context(storage) -> None:
+    """评审 D-1 回归防护：重答轮必须保留【问题】与【当前章节】原文上下文。"""
+    doc = make_doc()
+    storage.write_bookdoc(doc)
+    usage_log = UsageLog(storage)
+    good_mock = MockLLMClient(usage_log, responder=mock_behaviors.dispatch)
+    await build_book_knowledge(storage, doc.meta.bookId, good_mock)
+
+    real_para = doc.chapters[0].paras[0]
+    captured: list[list[ChatMessage]] = []
+    calls = {"n": 0}
+
+    class CaptureBackend:
+        provider = "capture"
+
+        async def chat(self, role, messages, **kwargs):
+            calls["n"] += 1
+            captured.append(list(messages))
+            if calls["n"] == 1:
+                content = json.dumps(
+                    {
+                        "answer": "首答引用不实",
+                        "citations": [{"paraId": real_para.id, "quote": "编造的引用"}],
+                        "hasBasis": True,
+                    },
+                    ensure_ascii=False,
+                )
+            else:
+                content = json.dumps(
+                    {
+                        "answer": "重答",
+                        "citations": [{"paraId": real_para.id, "quote": real_para.text}],
+                        "hasBasis": True,
+                    },
+                    ensure_ascii=False,
+                )
+            return type("R", (), {"content": content})()
+
+    result = await answer_question(
+        storage, usage_log, CaptureBackend(), doc.meta.bookId, "供给与需求", chapter_id="c001"
+    )
+    assert result.retried is True and result.hasBasis is True
+    # 首答与重答轮都必须包含问题与当前章原文
+    for i, messages in enumerate(captured):
+        corpus = "".join(m.content for m in messages)
+        assert "【问题】供给与需求" in corpus, f"第{i + 1}轮丢失问题"
+        assert "【当前章节：第一章 供给与需求】" in corpus, f"第{i + 1}轮丢失章节原文"
+        assert "[c001-p0001]" in corpus, f"第{i + 1}轮丢失段落原文"
+    # 重答轮保留首答内容与反馈
+    assert any(m.role == "assistant" for m in captured[1])
+    assert any("已被丢弃" in m.content for m in captured[1] if m.role == "user")

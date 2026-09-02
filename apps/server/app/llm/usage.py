@@ -85,8 +85,12 @@ class UsageLog:
         out = []
         for line in path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
-            if line:
+            if not line:
+                continue
+            try:
                 out.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue  # 损坏行跳过：不能让单行坏数据打断费用统计（M2 数据源）
         return out
 
     def summary(self, *, book_id: str | None = None) -> dict[str, Any]:

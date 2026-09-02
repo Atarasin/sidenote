@@ -1,6 +1,6 @@
 """统一模型客户端（计划 T1.1.1）：OpenAI 兼容 chat/completions。
 
-- 鉴权：API key 只从本地 config.local.yaml / 环境变量读取，绝不入库。
+- 鉴权：API key 只从本地 config.local.yaml 读取（不入库）。
 - 超时：每角色可配，默认 120s。
 - 重试：可重试错误（超时/限流/网络/5xx）指数退避重试 2 次。
 - 错误归一化：见 errors.from_http_status。

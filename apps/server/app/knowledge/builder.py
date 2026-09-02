@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 
 from ..llm.errors import ModelError
@@ -131,8 +132,9 @@ async def _extract_terms(
         book_id=book_id,
         purpose="glossary",
     )
+    content = re.sub(r"^```(?:json)?\s*|\s*```$", "", result.content.strip())
     try:
-        data = json.loads(result.content)
+        data = json.loads(content)
         if isinstance(data, list):
             return [
                 {

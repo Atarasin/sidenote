@@ -121,21 +121,24 @@ async def answer_question(
     result = AskResult(answer="", chapterId=chapter_id, provider=getattr(backend, "provider", ""))
     last_content = ""
     for attempt in range(2):  # 首答 + 校验失败重答一次
-        messages = list(base_messages)
+        # 重答轮必须保留完整原文上下文（当前章/旁证/问题），
+        # 否则模型没有可逐字引用的原文，重答必然失败（评审 D-1）
+        user_content = base_messages[1].content + ANSWER_FORMAT_INSTRUCTION
         if attempt == 1:
             feedback = (
                 "你上一轮的引用无法在原文中逐字对上，已被丢弃。"
                 "请重新回答，引用必须逐字来自上文段落原文。"
             )
             messages = [
-                messages[0],
+                base_messages[0],
+                ChatMessage("user", user_content),
                 ChatMessage("assistant", last_content),
-                ChatMessage("user", feedback + ANSWER_FORMAT_INSTRUCTION),
+                ChatMessage("user", feedback),
             ]
         else:
             messages = [
-                messages[0],
-                ChatMessage("user", messages[1].content + ANSWER_FORMAT_INSTRUCTION),
+                base_messages[0],
+                ChatMessage("user", user_content),
             ]
         try:
             response = await backend.chat(
@@ -151,8 +154,9 @@ async def answer_question(
         citations = validate_citations(doc, data.get("citations") or [])
         has_basis = bool(data.get("hasBasis"))
         result.retried = attempt == 1
-        if has_basis and citations:
-            result.answer = str(data.get("answer", "")).strip()
+        answer_text = str(data.get("answer", "")).strip()
+        if has_basis and citations and answer_text:
+            result.answer = answer_text
             result.citations = citations
             result.hasBasis = True
             result.witnessUsed = bool(witness_paras)
