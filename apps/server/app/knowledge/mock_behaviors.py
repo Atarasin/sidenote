@@ -142,6 +142,61 @@ def qa(messages: list[ChatMessage], _role: Role, _purpose: str) -> str:
     )
 
 
+def _svg_component(concept: str, simple: bool) -> str:
+    """确定性教学 SVG：透明背景 + currentColor，满足沙箱与双容器配色约束。"""
+    font = 15 if simple else 13
+    return (
+        "<!DOCTYPE html><html><head><style>"
+        "html,body{background:transparent;margin:0}"
+        ".wrap{color:currentColor;font-family:system-ui,sans-serif}"
+        "</style></head><body><div class='wrap' style='padding:8px'>"
+        f"<svg viewBox='0 0 320 180' width='100%' style='color:currentColor'>"
+        "<g fill='none' stroke='currentColor' stroke-width='2'>"
+        "<line x1='40' y1='160' x2='300' y2='160'/>"
+        "<line x1='40' y1='20' x2='40' y2='160'/>"
+        "<line x1='70' y1='50' x2='270' y2='140'/>"
+        "<line x1='70' y1='140' x2='270' y2='50' stroke-dasharray='6 4'/>"
+        "<circle cx='170' cy='95' r='5' fill='currentColor'/>"
+        "</g>"
+        f"<text x='50' y='175' font-size='{font}' fill='currentColor'>{concept}</text>"
+        "<text x='120' y='105' font-size='12' fill='currentColor'>均衡点</text>"
+        "</svg></div>"
+        "<script>parent.postMessage({type:'sidenote:ready',hasContent:true},'*');</script>"
+        "</body></html>"
+    )
+
+
+def diagram(messages: list[ChatMessage], _role: Role, purpose: str) -> str:
+
+    content = _block(messages, "段落内容")
+    concept = "概念"
+    m = re.search(r"概念：(.+)", "".join(x.content for x in messages))
+    if m:
+        concept = m.group(1).splitlines()[0].strip()
+    para_id = ""
+    pid = re.search(r"【段落内容】（([a-z0-9\-]+)）", "".join(x.content for x in messages))
+    if pid:
+        para_id = pid.group(1)
+    sentence = _sentences(content)[0] if _sentences(content) else ""
+    # 去掉 prompt 携带的段落编号前缀，保证 quote 与段落原文逐字一致
+    sentence = re.sub(r"^（[a-z0-9-]+）", "", sentence)
+    component = _svg_component(concept, simple=purpose == "diagram_repair")
+    return json.dumps(
+        {
+            "componentHtml": component,
+            "summary": f"{concept}：曲线交点即均衡（静态示意）",
+            "citations": [{"paraId": para_id, "quote": sentence}] if para_id and sentence else [],
+        },
+        ensure_ascii=False,
+    )
+
+
+def diagram_explain(messages: list[ChatMessage], _role: Role, _purpose: str) -> str:
+    content = _block(messages, "段落内容")
+    sents = _sentences(content)
+    return "".join(sents[:2])[:120] or "（离线模式讲解）"
+
+
 def dispatch(messages: list[ChatMessage], role: Role, purpose: str) -> str:
     if purpose == "chapter_summary":
         return chapter_summary(messages, role, purpose)
@@ -149,4 +204,8 @@ def dispatch(messages: list[ChatMessage], role: Role, purpose: str) -> str:
         return glossary(messages, role, purpose)
     if purpose == "qa":
         return qa(messages, role, purpose)
+    if purpose in ("diagram", "diagram_repair"):
+        return diagram(messages, role, purpose)
+    if purpose == "diagram_explain":
+        return diagram_explain(messages, role, purpose)
     return f"（离线模式：未配置模型 API key，purpose={purpose}）"

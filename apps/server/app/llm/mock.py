@@ -51,6 +51,7 @@ class MockLLMClient:
         *,
         book_id: str | None = None,
         purpose: str = "",
+        session_id: str = "",
         extra_body: dict[str, Any] | None = None,
     ) -> ChatResult:
         self.calls.append(list(messages))
@@ -78,7 +79,7 @@ class MockLLMClient:
             status="ok",
             book_id=book_id,
             purpose=purpose,
-            extra={"mock": True},
+            extra={"mock": True, **({"sessionId": session_id} if session_id else {})},
         )
         return ChatResult(
             content=content, usage=usage, provider=self.provider, model=self.model
