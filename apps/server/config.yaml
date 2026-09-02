@@ -1,0 +1,10 @@
+# sidenote 服务端默认配置（可被 config.local.yaml 覆盖；API key 一律放 local）
+server:
+  host: "127.0.0.1"
+  port: 8787
+
+upload:
+  max_bytes: 314572800 # 300MB
+
+# 模型路由（M1 起生效；key 放 config.local.yaml，绝不入库）
+models: {}

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sidenote.local/schemas/bookdoc.schema.json",
+  "title": "BookDoc",
+  "description": "sidenote 书籍解析产物（上游 §3.1）。段落 ID 必须稳定：章节序 + 段序。",
+  "type": "object",
+  "required": ["meta", "toc", "chapters", "figures"],
+  "properties": {
+    "meta": { "$ref": "#/$defs/meta" },
+    "toc": { "type": "array", "items": { "$ref": "#/$defs/tocItem" } },
+    "chapters": { "type": "array", "items": { "$ref": "#/$defs/chapter" } },
+    "figures": { "type": "array", "items": { "$ref": "#/$defs/figure" } }
+  },
+  "$defs": {
+    "meta": {
+      "type": "object",
+      "required": ["bookId", "title", "format", "fileHash"],
+      "properties": {
+        "bookId": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+        "title": { "type": "string", "minLength": 1 },
+        "authors": { "type": "array", "items": { "type": "string" } },
+        "format": { "enum": ["epub", "pdf"] },
+        "fileHash": { "type": "string", "minLength": 8 }
+      }
+    },
+    "tocItem": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string" },
+        "chapterId": { "type": "string" },
+        "paraId": { "type": "string" },
+        "children": { "type": "array", "items": { "$ref": "#/$defs/tocItem" } }
+      }
+    },
+    "chapter": {
+      "type": "object",
+      "required": ["id", "title", "paras"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^c\\d{3,}$" },
+        "title": { "type": "string" },
+        "paras": { "type": "array", "items": { "$ref": "#/$defs/para" } }
+      }
+    },
+    "para": {
+      "type": "object",
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^c\\d{3,}-p\\d{4,}$" },
+        "text": { "type": "string" },
+        "page": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "figure": {
+      "type": "object",
+      "required": ["id", "chapterId", "imgPath"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "chapterId": { "type": "string" },
+        "imgPath": { "type": "string" },
+        "caption": { "type": "string" }
+      }
+    }
+  }
+}
