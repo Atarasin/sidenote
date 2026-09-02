@@ -5,6 +5,8 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // pdf.js 的 worker 以 IIFE 经典 worker 加载（部分内嵌 WebView 不支持 module worker）
+  worker: { format: "iife" },
   resolve: {
     alias: {
       "@shared": fileURLToPath(new URL("../../shared", import.meta.url)),

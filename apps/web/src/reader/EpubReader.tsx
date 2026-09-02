@@ -1,14 +1,14 @@
 import type { BookDoc, Chapter, TocItem } from "@shared/types/bookdoc";
-import ePub from "epubjs";
 import type { Book, Contents, Rendition } from "epubjs";
 /**
  * EPUB.js 渲染集成（计划 T0.3.1 / T0.3.3 / T0.3.4）：
  * 章节渲染、翻页（←/→、PgUp/PgDn）、文字可选中（iframe 原生能力）、
  * 渲染 DOM ↔ BookDoc paraId 一一标注、章节/段落跳转。
  */
-import { useEffect, useImperativeHandle, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { RefObject } from "react";
 import type { AnchorRegistry } from "./anchors";
+import { loadEpubGlobal } from "./epubCompat";
 import { alignBlocksToParas } from "./textAlign";
 
 export const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,table";
@@ -46,31 +46,16 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
   const renditionRef = useRef<Rendition | null>(null);
   const pendingPara = useRef<string | null>(null);
   const chaptersByHref = useRef(new Map<string, Chapter>());
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
     const container = viewRef.current;
     if (!container) return;
+    setRenderError(null);
     registry.clear();
     chaptersByHref.current = new Map(
       doc.chapters.filter((c) => c.href).map((c) => [basename(c.href as string), c] as const),
     );
-
-    const book: Book = ePub(`/api/books/${bookId}/source`);
-    const rendition = book.renderTo(container, {
-      width: "100%",
-      height: "100%",
-      flow: "paginated",
-      spread: "none",
-      allowScriptedContent: false,
-    });
-    renditionRef.current = rendition;
-    // 纸感主题：正文衬线字体栈注入 iframe（UI 文档 §3.1 / §3.8）
-    rendition.themes.default({
-      "body, p, h1, h2, h3, h4, h5, h6, li, blockquote, pre": {
-        "font-family": '"Noto Serif SC", "Songti SC", "SimSun", Georgia, serif',
-      },
-    });
-    void rendition.display();
 
     const annotate = (contents: Contents, chapter: Chapter) => {
       const body = contents.document.body;
@@ -85,45 +70,77 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
       topBlocks.forEach((el, i) => {
         const paraIdx = assignments[i];
         if (paraIdx == null) {
-          delete el.dataset.paraId;
+          el.removeAttribute("data-paraid");
           return;
         }
         const para = chapter.paras[paraIdx];
-        el.dataset.paraId = para.id;
+        el.setAttribute("data-paraid", para.id);
         registry.register(para.id, el, chapter.id);
       });
-      // 跳转落点：本章渲染完成后滚到目标段落
-      if (pendingPara.current && registry.get(pendingPara.current)?.chapterId === chapter.id) {
-        const anchored = registry.get(pendingPara.current);
-        if (anchored) scrollElIntoEpubPage(anchored.el);
-        pendingPara.current = null;
-      }
     };
 
-    const onRendered = (section: unknown, contents: Contents) => {
+    // epub.js 的 rendered 事件载荷为 (section, view)；文档在 view.contents 上
+    const onRendered = (section: unknown, view: unknown) => {
       const href = (section as { href?: string })?.href ?? "";
+      const contents = (view as { contents?: Contents } | null)?.contents;
       const chapter = chaptersByHref.current.get(basename(href));
-      if (chapter) {
+      if (chapter && contents) {
         annotate(contents, chapter);
         onChapterChange?.(chapter);
       }
     };
-    rendition.on("rendered", onRendered as never);
+
+    let book: Book | null = null;
+    let rendition: Rendition | null = null;
+    let cancelled = false;
+    // epub.js 的 URL 模式会把「去掉文件名后的路径」当作 EPUB 内部路径的基址逐文件请求；
+    // 本地服务不暴露 zip 内部结构，因此取回 ArrayBuffer 交给 epub.js 在浏览器内解压。
+    void (async () => {
+      try {
+        const resp = await fetch(`/api/books/${bookId}/source`);
+        if (!resp.ok) throw new Error(`源文件请求失败（HTTP ${resp.status}）`);
+        const [data, ePub] = await Promise.all([resp.arrayBuffer(), loadEpubGlobal()]);
+        if (cancelled) return;
+        book = ePub(data);
+        rendition = book.renderTo(container, {
+          width: "100%",
+          height: "100%",
+          flow: "paginated",
+          spread: "none",
+          allowScriptedContent: false,
+        });
+        renditionRef.current = rendition;
+        rendition.on("rendered", onRendered as never);
+        // 纸感主题：正文衬线字体栈注入 iframe（UI 文档 §3.1 / §3.8）
+        rendition.themes.default({
+          "body, p, h1, h2, h3, h4, h5, h6, li, blockquote, pre": {
+            "font-family": '"Noto Serif SC", "Songti SC", "SimSun", Georgia, serif',
+          },
+        });
+        // spine 首项常是 nav 目录页；直接打开 BookDoc 第一章
+        await rendition.display(doc.chapters[0]?.href ?? undefined);
+      } catch (exc) {
+        if (!cancelled) {
+          setRenderError(`EPUB 渲染失败：${exc instanceof Error ? exc.message : String(exc)}`);
+        }
+      }
+    })();
 
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
-      if (e.key === "ArrowRight" || e.key === "PageDown") void rendition.next();
-      else if (e.key === "ArrowLeft" || e.key === "PageUp") void rendition.prev();
+      if (e.key === "ArrowRight" || e.key === "PageDown") void renditionRef.current?.next();
+      else if (e.key === "ArrowLeft" || e.key === "PageUp") void renditionRef.current?.prev();
     };
     window.addEventListener("keydown", onKey);
 
     return () => {
+      cancelled = true;
       window.removeEventListener("keydown", onKey);
-      rendition.destroy();
-      void book.destroy();
-      registry.clear();
+      renditionRef.current?.destroy();
       renditionRef.current = null;
+      void book?.destroy();
+      registry.clear();
     };
     // 仅随书籍实例重建（doc/registry 由父组件按 bookId 保证对应）
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,5 +166,14 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
     },
   }));
 
+  if (renderError) {
+    return (
+      <div className="flex h-full items-center justify-center p-8">
+        <p className="max-w-md rounded-lg border border-red-200 bg-red-50 p-4 text-xs text-red-600">
+          {renderError}
+        </p>
+      </div>
+    );
+  }
   return <div ref={viewRef} className="h-full w-full epub-view" />;
 }

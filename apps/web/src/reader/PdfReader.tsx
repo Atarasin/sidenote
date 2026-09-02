@@ -1,7 +1,7 @@
 import type { BookDoc, Chapter, TocItem } from "@shared/types/bookdoc";
 import * as pdfjs from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import PdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?worker";
 /**
  * PDF.js 渲染集成（计划 T0.3.2 / T0.3.3 / T0.3.4）：
  * 文字版 PDF 单页渲染（canvas + 自建文本层）、翻页、文字可选中、
@@ -13,7 +13,8 @@ import type { ReaderHandle } from "./EpubReader";
 import type { AnchorRegistry } from "./anchors";
 import { groupItemsByParas } from "./textAlign";
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+// workerPort 直接持有 worker 实例，绕开 module-worker 兼容性问题
+pdfjs.GlobalWorkerOptions.workerPort = new PdfjsWorker();
 
 interface Props {
   bookId: string;
@@ -32,6 +33,7 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
   const [numPages, setNumPages] = useState(0);
   const [pageNo, setPageNo] = useState(1);
   const [zoom, setZoom] = useState(1);
+  const [renderError, setRenderError] = useState<string | null>(null);
 
   // 加载文档
   useEffect(() => {
@@ -66,109 +68,126 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
     if (!pdf || !canvas || !layer || !wrap || pageNo < 1) return;
 
     let cancelled = false;
+    let renderTask: { cancel(): void } | null = null;
     void (async () => {
-      const page = await pdf.getPage(pageNo);
-      if (cancelled) return;
-      const base = page.getViewport({ scale: 1 });
-      const scale = ((wrap.clientWidth - 24) / base.width) * zoom;
-      const viewport = page.getViewport({ scale });
+      try {
+        const page = await pdf.getPage(pageNo);
+        if (cancelled) return;
+        const base = page.getViewport({ scale: 1 });
+        const scale = ((wrap.clientWidth - 24) / base.width) * zoom;
+        const viewport = page.getViewport({ scale });
 
-      canvas.width = Math.floor(viewport.width);
-      canvas.height = Math.floor(viewport.height);
-      canvas.style.width = `${Math.floor(viewport.width)}px`;
-      canvas.style.height = `${Math.floor(viewport.height)}px`;
-      await page.render({ canvasContext: canvas.getContext("2d")!, viewport }).promise;
-      if (cancelled) return;
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        canvas.style.width = `${Math.floor(viewport.width)}px`;
+        canvas.style.height = `${Math.floor(viewport.height)}px`;
+        const task = page.render({ canvasContext: canvas.getContext("2d")!, viewport });
+        renderTask = task;
+        await task.promise;
+        if (cancelled) return;
 
-      const content = await page.getTextContent();
-      if (cancelled) return;
+        const content = await page.getTextContent();
+        if (cancelled) return;
 
-      // 本章内、出现在本页的段落（含从上一页延续的段落：靠 indexOf 对齐天然跳过其页首尾巴）
-      const chapter = chapterForPage(doc, pageNo - 1);
-      const items = content.items as { str: string; transform: number[]; width: number }[];
-      layer.replaceChildren();
-      layer.style.position = "relative";
-      layer.style.width = `${canvas.width}px`;
-      layer.style.height = `${canvas.height}px`;
+        // 本章内、出现在本页的段落（含从上一页延续的段落：靠 indexOf 对齐天然跳过其页首尾巴）
+        const chapter = chapterForPage(doc, pageNo - 1);
+        const items = content.items as { str: string; transform: number[]; width: number }[];
+        layer.replaceChildren();
+        layer.style.position = "relative";
+        layer.style.width = `${canvas.width}px`;
+        layer.style.height = `${canvas.height}px`;
 
-      const paras = chapter?.paras ?? [];
-      const { groups } = groupItemsByParas(
-        items,
-        paras.map((p) => p.text),
-      );
+        const paras = chapter?.paras ?? [];
+        const { groups } = groupItemsByParas(
+          items,
+          paras.map((p) => p.text),
+        );
 
-      const place = (
-        item: { str: string; transform: number[]; width: number },
-        parent: HTMLElement,
-      ) => {
-        const span = document.createElement("span");
-        const tx = pdfjs.Util.transform(viewport.transform, item.transform);
-        const fontHeight = Math.hypot(tx[2], tx[3]) || 12;
-        span.textContent = item.str;
-        span.style.position = "absolute";
-        const left = tx[4];
-        const top = tx[5] - fontHeight;
-        const parentRect = parent === layer ? { left: 0, top: 0 } : parent.dataset;
-        const relLeft = left - Number(parentRect.left || 0);
-        const relTop = top - Number(parentRect.top || 0);
-        span.style.left = `${relLeft}px`;
-        span.style.top = `${relTop}px`;
-        span.style.fontSize = `${fontHeight}px`;
-        span.style.whiteSpace = "pre";
-        parent.appendChild(span);
-        return { left, top, right: left + item.width * viewport.scale, bottom: top + fontHeight };
-      };
+        const place = (
+          item: { str: string; transform: number[]; width: number },
+          parent: HTMLElement,
+        ) => {
+          const span = document.createElement("span");
+          const tx = pdfjs.Util.transform(viewport.transform, item.transform);
+          const fontHeight = Math.hypot(tx[2], tx[3]) || 12;
+          span.textContent = item.str;
+          span.style.position = "absolute";
+          const left = tx[4];
+          const top = tx[5] - fontHeight;
+          const parentRect = parent === layer ? { left: 0, top: 0 } : parent.dataset;
+          const relLeft = left - Number(parentRect.left || 0);
+          const relTop = top - Number(parentRect.top || 0);
+          span.style.left = `${relLeft}px`;
+          span.style.top = `${relTop}px`;
+          span.style.fontSize = `${fontHeight}px`;
+          span.style.whiteSpace = "pre";
+          parent.appendChild(span);
+          return { left, top, right: left + item.width * viewport.scale, bottom: top + fontHeight };
+        };
 
-      const unionBox = (boxes: { left: number; top: number; right: number; bottom: number }[]) => {
-        const left = Math.min(...boxes.map((b) => b.left));
-        const top = Math.min(...boxes.map((b) => b.top));
-        const right = Math.max(...boxes.map((b) => b.right));
-        const bottom = Math.max(...boxes.map((b) => b.bottom));
-        return { left, top, right, bottom };
-      };
+        const unionBox = (
+          boxes: { left: number; top: number; right: number; bottom: number }[],
+        ) => {
+          const left = Math.min(...boxes.map((b) => b.left));
+          const top = Math.min(...boxes.map((b) => b.top));
+          const right = Math.max(...boxes.map((b) => b.right));
+          const bottom = Math.max(...boxes.map((b) => b.bottom));
+          return { left, top, right, bottom };
+        };
 
-      const groupedItems = new Set<number>();
-      for (const [paraIdx, itemIdxs] of groups) {
-        const para = paras[paraIdx];
-        const box = document.createElement("div");
-        box.className = "pdf-para";
-        box.dataset.paraId = para.id;
-        const boxes = itemIdxs.map((i) => {
-          groupedItems.add(i);
-          return place(items[i], box);
-        });
-        const u = unionBox(boxes);
-        Object.assign(box.dataset, { left: String(u.left), top: String(u.top) });
-        box.style.position = "absolute";
-        box.style.left = `${u.left}px`;
-        box.style.top = `${u.top}px`;
-        box.style.width = `${Math.max(u.right - u.left, 1)}px`;
-        box.style.height = `${Math.max(u.bottom - u.top, 1)}px`;
-        // 段落盒子本身不参与选区/命中，仅作锚点载体
-        box.style.pointerEvents = "none";
-        for (const child of [...box.children]) {
-          (child as HTMLElement).style.pointerEvents = "auto";
+        const groupedItems = new Set<number>();
+        for (const [paraIdx, itemIdxs] of groups) {
+          const para = paras[paraIdx];
+          const box = document.createElement("div");
+          box.className = "pdf-para";
+          box.setAttribute("data-paraid", para.id);
+          const boxes = itemIdxs.map((i) => {
+            groupedItems.add(i);
+            return place(items[i], box);
+          });
+          const u = unionBox(boxes);
+          Object.assign(box.dataset, { left: String(u.left), top: String(u.top) });
+          box.style.position = "absolute";
+          box.style.left = `${u.left}px`;
+          box.style.top = `${u.top}px`;
+          box.style.width = `${Math.max(u.right - u.left, 1)}px`;
+          box.style.height = `${Math.max(u.bottom - u.top, 1)}px`;
+          // 段落盒子本身不参与选区/命中，仅作锚点载体
+          box.style.pointerEvents = "none";
+          for (const child of [...box.children]) {
+            (child as HTMLElement).style.pointerEvents = "auto";
+          }
+          registry.register(para.id, box, chapter!.id);
+          layer.appendChild(box);
         }
-        registry.register(para.id, box, chapter!.id);
-        layer.appendChild(box);
-      }
-      for (let i = 0; i < items.length; i++) {
-        if (!groupedItems.has(i)) place(items[i], layer);
-      }
-
-      if (chapter) onChapterChange?.(chapter);
-      if (pendingPara.current) {
-        const anchored = registry.get(pendingPara.current);
-        if (anchored && anchored.chapterId === chapter?.id) {
-          anchored.el.scrollIntoView({ block: "center" });
-          anchored.el.classList.add("anchor-flash");
-          window.setTimeout(() => anchored.el.classList.remove("anchor-flash"), 2000);
+        for (let i = 0; i < items.length; i++) {
+          if (!groupedItems.has(i)) place(items[i], layer);
         }
-        pendingPara.current = null;
+
+        if (chapter) onChapterChange?.(chapter);
+        if (pendingPara.current) {
+          const anchored = registry.get(pendingPara.current);
+          if (anchored && anchored.chapterId === chapter?.id) {
+            anchored.el.scrollIntoView({ block: "center" });
+            anchored.el.classList.add("anchor-flash");
+            window.setTimeout(() => anchored.el.classList.remove("anchor-flash"), 2000);
+          }
+          pendingPara.current = null;
+        }
+      } catch (exc) {
+        if (!cancelled) {
+          setRenderError(`PDF 渲染失败：${exc instanceof Error ? exc.message : String(exc)}`);
+        }
       }
     })();
     return () => {
       cancelled = true;
+      // StrictMode 双跑 / 快速翻页时取消在途渲染，避免同一 canvas 上挂死
+      try {
+        renderTask?.cancel();
+      } catch {
+        /* 任务已结束 */
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookId, pageNo, zoom, numPages]);
@@ -216,6 +235,15 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
     },
   }));
 
+  if (renderError) {
+    return (
+      <div className="flex h-full items-center justify-center p-8">
+        <p className="max-w-md rounded-lg border border-red-200 bg-red-50 p-4 text-xs text-red-600">
+          {renderError}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="pdf-view flex h-full w-full flex-col items-center overflow-auto" ref={wrapRef}>
       <div className="relative" style={{ margin: "12px 0" }}>
