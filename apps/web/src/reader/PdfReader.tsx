@@ -23,9 +23,18 @@ interface Props {
   registry: AnchorRegistry;
   handleRef: RefObject<ReaderHandle | null>;
   onChapterChange?: (chapter: Chapter | null) => void;
+  /** 滚动/翻页/缩放后触发（M3 便签重定位，T3.3.1） */
+  onLayoutChange?: () => void;
 }
 
-export default function PdfReader({ bookId, doc, registry, handleRef, onChapterChange }: Props) {
+export default function PdfReader({
+  bookId,
+  doc,
+  registry,
+  handleRef,
+  onChapterChange,
+  onLayoutChange,
+}: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const layerRef = useRef<HTMLDivElement>(null);
@@ -187,6 +196,7 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
           }
           pendingPara.current = null;
         }
+        onLayoutChange?.();
       } catch (exc) {
         if (!cancelled) {
           setRenderError(`PDF 渲染失败：${exc instanceof Error ? exc.message : String(exc)}`);
@@ -216,6 +226,16 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [numPages]);
+
+  // 滚动（含缩放后回流）→ 便签重定位
+  // biome-ignore lint/correctness/useExhaustiveDependencies: 只随挂载绑定一次，回调由父组件保持稳定
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const onScroll = () => onLayoutChange?.();
+    wrap.addEventListener("scroll", onScroll, { passive: true });
+    return () => wrap.removeEventListener("scroll", onScroll);
+  }, []);
 
   useImperativeHandle(handleRef, () => ({
     jumpTo(toc: TocItem) {

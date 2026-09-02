@@ -25,6 +25,8 @@ interface Props {
   registry: AnchorRegistry;
   handleRef: RefObject<ReaderHandle | null>;
   onChapterChange?: (chapter: Chapter | null) => void;
+  /** 翻页/重渲染后触发（M3 便签重定位，T3.3.1） */
+  onLayoutChange?: () => void;
 }
 
 function basename(href: string): string {
@@ -41,7 +43,14 @@ function scrollElIntoEpubPage(el: HTMLElement): void {
   docEl.scrollLeft = Math.max(0, Math.floor(x / pageWidth) * pageWidth);
 }
 
-export default function EpubReader({ bookId, doc, registry, handleRef, onChapterChange }: Props) {
+export default function EpubReader({
+  bookId,
+  doc,
+  registry,
+  handleRef,
+  onChapterChange,
+  onLayoutChange,
+}: Props) {
   const viewRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const pendingPara = useRef<string | null>(null);
@@ -95,6 +104,7 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
         annotate(contents, chapter);
         onChapterChange?.(chapter);
       }
+      onLayoutChange?.();
     };
 
     let book: Book | null = null;
@@ -118,6 +128,8 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
         });
         renditionRef.current = rendition;
         rendition.on("rendered", onRendered as never);
+        // relocated：翻页/跳转后段落矩形变化 → 便签重定位
+        rendition.on("relocated", () => onLayoutChange?.());
         // 纸感主题：正文衬线字体栈注入 iframe（UI 文档 §3.1 / §3.8）
         rendition.themes.default({
           "body, p, h1, h2, h3, h4, h5, h6, li, blockquote, pre": {
