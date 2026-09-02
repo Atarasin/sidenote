@@ -29,6 +29,7 @@ import type { ReaderHandle } from "./EpubReader";
 import PdfReader from "./PdfReader";
 import ReaderShell from "./ReaderShell";
 import { AnchorRegistry } from "./anchors";
+import { hostLocalRect } from "./hostRect";
 
 interface Props {
   bookId: string;
@@ -164,18 +165,12 @@ export default function ReaderPage({ bookId }: Props) {
       // 候选段落：选区相交(2分)/近邻(1分) 的前 8 个（红线 4：锚点只用 paraId）
       const candidates: { paraId: string; text: string }[] = [];
       if (host && doc && sel) {
-        const hostRect = host.getBoundingClientRect();
         const scored: { score: number; paraId: string }[] = [];
         for (const pid of registry.paraIds()) {
           const anchored = registry.get(pid);
           if (!anchored) continue;
-          const r = anchored.el.getBoundingClientRect();
-          const local = {
-            x: r.left - hostRect.left,
-            y: r.top - hostRect.top,
-            width: r.width,
-            height: r.height,
-          };
+          // 跨 iframe 换算到书页坐标系（epub.js 分栏元素在 iframe 视口内）
+          const local = hostLocalRect(anchored.el, host);
           const score = paraScore(local, sel);
           if (score > 0) scored.push({ score, paraId: pid });
         }

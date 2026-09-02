@@ -83,7 +83,7 @@ export async function askQuestion(
   const resp = await fetch(`/api/books/${bookId}/ask`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ ...payload, sessionId: getSessionId() }),
   });
   return jsonOrThrow<AskResult>(resp);
 }

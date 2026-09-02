@@ -96,7 +96,11 @@ export default function ScribbleLayer({ active, onSubmit, clearToken }: Props) {
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!active || pending) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      /* 指针已释放/合成事件：捕获失败不阻断起笔 */
+    }
     drawingRef.current = [localPoint(e)];
     redraw();
   };

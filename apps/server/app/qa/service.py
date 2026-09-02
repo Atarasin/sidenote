@@ -90,6 +90,7 @@ async def answer_question(
     book_id: str,
     question: str,
     chapter_id: str | None = None,
+    session_id: str = "",
 ) -> AskResult:
     doc = storage.read_bookdoc(book_id)
     if doc is None:
@@ -142,7 +143,11 @@ async def answer_question(
             ]
         try:
             response = await backend.chat(
-                "long_text_qa", messages, book_id=book_id, purpose="qa"
+                "long_text_qa",
+                messages,
+                book_id=book_id,
+                purpose="qa",
+                session_id=session_id,  # 问答计入会话费用（T3.5.4 联调一致）
             )
         except ModelError as exc:
             result.answer = f"模型调用失败（{exc.kind}），请稍后重试。"

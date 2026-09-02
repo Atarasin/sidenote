@@ -88,42 +88,51 @@ function intersects(local: Rect, rect: Rect): boolean {
   );
 }
 
-/** EPUB：把 iframe 内选区中的文本行按相对位置画到画布。 */
+/** EPUB：把各 iframe 内选区中的文本行按相对位置画到画布。
+ *
+ * epub.js 分栏会同时保留多个 iframe（当前栏/预载栏），逐个检查；
+ * iframe 内 rect 是该 iframe 视口坐标，需加 iframe 元素在宿主中的偏移。
+ */
 function paintIframeText(
   ctx: CanvasRenderingContext2D,
-  iframe: HTMLIFrameElement,
+  root: HTMLElement,
   rootRect: DOMRect,
   rect: Rect,
 ): void {
-  const doc = iframe.contentDocument;
-  if (!doc?.body) return;
-  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
   ctx.font = "14px system-ui, sans-serif";
   ctx.fillStyle = "#111827";
-  let node = walker.nextNode() as Text | null;
-  while (node) {
-    const parent = node.parentElement;
-    const tag = parent?.tagName;
-    if (parent && (node.textContent ?? "").trim() && tag !== "SCRIPT" && tag !== "STYLE") {
-      for (const range of textLineRanges(doc, node)) {
-        const elRect = range.getBoundingClientRect(); // 视口坐标（跨 iframe 一致）
-        const local = {
-          x: elRect.left - rootRect.left,
-          y: elRect.top - rootRect.top,
-          width: elRect.width,
-          height: elRect.height,
-        };
-        if (intersects(local, rect)) {
-          ctx.fillText(
-            range.toString(),
-            local.x - rect.x + 2,
-            local.y - rect.y + Math.min(local.height, 16),
-            Math.max(local.width, 20),
-          );
+  for (const iframe of Array.from(root.querySelectorAll("iframe"))) {
+    const doc = iframe.contentDocument;
+    if (!doc?.body) continue;
+    const fr = iframe.getBoundingClientRect();
+    const originX = fr.left - rootRect.left;
+    const originY = fr.top - rootRect.top;
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode() as Text | null;
+    while (node) {
+      const parent = node.parentElement;
+      const tag = parent?.tagName;
+      if (parent && (node.textContent ?? "").trim() && tag !== "SCRIPT" && tag !== "STYLE") {
+        for (const range of textLineRanges(doc, node)) {
+          const elRect = range.getBoundingClientRect(); // iframe 视口坐标
+          const local = {
+            x: elRect.left + originX,
+            y: elRect.top + originY,
+            width: elRect.width,
+            height: elRect.height,
+          };
+          if (intersects(local, rect)) {
+            ctx.fillText(
+              range.toString(),
+              local.x - rect.x + 2,
+              local.y - rect.y + Math.min(local.height, 16),
+              Math.max(local.width, 20),
+            );
+          }
         }
       }
+      node = walker.nextNode() as Text | null;
     }
-    node = walker.nextNode() as Text | null;
   }
 }
 
@@ -165,8 +174,7 @@ export function composeRegionImage(input: ComposeInput): string | null {
       /* 画布不可读（理论不会发生，本地同源）→ 留白底 */
     }
   } else {
-    const iframe = root.querySelector("iframe");
-    if (iframe) paintIframeText(ctx, iframe, rootRect, rect);
+    paintIframeText(ctx, root, rootRect, rect);
   }
 
   // 叠加同一份笔迹（红 #ef4444，UI §3.2）

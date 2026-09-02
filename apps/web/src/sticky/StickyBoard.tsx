@@ -8,6 +8,7 @@
  */
 import { useLayoutEffect, useState } from "react";
 import type { AnchorRegistry } from "../reader/anchors";
+import { hostLocalRect } from "../reader/hostRect";
 
 export interface StickySlot {
   key: string;
@@ -50,20 +51,20 @@ export default function StickyBoard({
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    const hostRect = host.getBoundingClientRect();
     const items: Placed[] = [];
     for (const slot of slots) {
       const anchored = registry.get(slot.paraId);
       if (!anchored) continue;
-      const r = anchored.el.getBoundingClientRect();
+      // 跨 iframe 换算到书页坐标系（epub.js 分栏元素在 iframe 视口内）
+      const r = hostLocalRect(anchored.el, host);
       // 只显示当前可见页内的便签（横向分栏/纵向滚动都会把段落移出）
       const visible =
-        r.left < hostRect.right &&
-        r.right > hostRect.left &&
-        r.bottom > hostRect.top &&
-        r.top < hostRect.bottom;
+        r.x < host.clientWidth &&
+        r.x + r.width > 0 &&
+        r.y < host.clientHeight &&
+        r.y + r.height > 0;
       if (!visible) continue;
-      items.push({ slot, top: Math.max(4, r.top - hostRect.top) });
+      items.push({ slot, top: Math.max(4, r.y) });
     }
     items.sort((a, b) => a.top - b.top);
     // 垂直排布：不回叠（上一张估算高度之下），同段多卡再纵向错位 8px
