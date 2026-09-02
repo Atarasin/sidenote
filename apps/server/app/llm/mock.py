@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from .types import ChatMessage, ChatResult, Role, UsageInfo
+from .types import ChatMessage, ChatResult, Role, UsageInfo, content_text
 
 Responder = Callable[[list[ChatMessage], Role, str], str]
 # responder(messages, role, purpose)；按 purpose 分发离线生成逻辑（见 knowledge/mock_behaviors.py）
@@ -41,7 +41,7 @@ class MockLLMClient:
 
     def _prefix_fingerprint(self, messages: list[ChatMessage]) -> str:
         # 常驻上下文由首条（system）承载；相同指纹视为前缀缓存命中（T1.3.3）
-        head = messages[0].content[:2048] if messages else ""
+        head = content_text(messages[0].content)[:2048] if messages else ""
         return hashlib.sha256(head.encode("utf-8")).hexdigest()
 
     async def chat(
@@ -57,7 +57,7 @@ class MockLLMClient:
         self.calls.append(list(messages))
         start = time.monotonic()
         content = self.responder(list(messages), role, purpose)
-        prompt_tokens = sum(self._approx_tokens(m.content) for m in messages)
+        prompt_tokens = sum(self._approx_tokens(content_text(m.content)) for m in messages)
         completion_tokens = self._approx_tokens(content)
 
         fp = self._prefix_fingerprint(messages)
