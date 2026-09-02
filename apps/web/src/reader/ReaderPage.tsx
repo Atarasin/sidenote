@@ -171,6 +171,7 @@ export default function ReaderPage({ bookId }: Props) {
           if (!anchored) continue;
           // 跨 iframe 换算到书页坐标系（epub.js 分栏元素在 iframe 视口内）
           const local = hostLocalRect(anchored.el, host);
+          if (local.width < 1 && local.height < 1) continue; // 幽灵锚点（detached 元素 rect 为 0）
           const score = paraScore(local, sel);
           if (score > 0) scored.push({ score, paraId: pid });
         }
@@ -487,6 +488,7 @@ export default function ReaderPage({ bookId }: Props) {
               registry={registryRef.current}
               hostRef={pageRef}
               layoutTick={layoutTick}
+              chapterId={chapter?.id ?? ""}
               chapterTitle={chapter?.title ?? ""}
               onJumpToPara={jumpToPara}
               stickyLabels={stickyLabels}
@@ -542,6 +544,19 @@ export default function ReaderPage({ bookId }: Props) {
           bookId={bookId}
           onClose={() => setTheater(null)}
           onJumpToPara={jumpToPara}
+          onFollowUp={() => {
+            const t = theater; // 继续追问（UI §3.4 五要素）：以图解话题为种子开抽屉
+            setTheater(null);
+            openDrawer(undefined, {
+              question: `图解「${t.concept}」`,
+              paraId: t.paraId,
+              answer: {
+                answer: t.explanation || t.summary || "（见图解）",
+                citations: t.citations as Citation[],
+                hasBasis: true,
+              },
+            });
+          }}
         />
       )}
     </>

@@ -5,6 +5,7 @@
  * - 引用 chips：{paraId, quote}[] 全量渲染，点击滚动到段落并闪烁 2s（红线 2 回跳）。
  * - 标注行「辅助理解，以原文为准」必带；操作行 ↗ 原文 / 展开深聊。
  */
+import { useState } from "react";
 import type { Citation } from "../api";
 
 export interface StickyAnswer {
@@ -39,6 +40,7 @@ export default function StickyCard({
   onDeepChat,
   onClose,
 }: Props) {
+  const [answerOpen, setAnswerOpen] = useState(false); // 讲解默认折叠，可展开（UI §3.3）
   return (
     <div className="w-full rounded-xl border border-amber-300 bg-amber-50 p-3 text-stone-800 shadow-sm">
       <div className="mb-2 flex items-center gap-2 text-xs font-semibold">
@@ -69,7 +71,18 @@ export default function StickyCard({
             {!result.hasBasis ? (
               <p className="text-stone-500">书中未涉及</p>
             ) : (
-              <p className="max-h-40 overflow-y-auto text-stone-700">{result.answer}</p>
+              <div>
+                <button
+                  type="button"
+                  className="text-[11px] text-stone-500 hover:text-stone-700"
+                  onClick={() => setAnswerOpen((v) => !v)}
+                >
+                  {answerOpen ? "收起讲解 ▴" : "展开讲解 ▾"}
+                </button>
+                {answerOpen && (
+                  <p className="mt-1 max-h-40 overflow-y-auto text-stone-700">{result.answer}</p>
+                )}
+              </div>
             )}
             {result.citations.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1">

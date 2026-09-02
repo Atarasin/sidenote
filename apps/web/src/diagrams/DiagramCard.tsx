@@ -160,7 +160,7 @@ export default function DiagramCard({
         {phase === "degrading" && <Skeleton label={`重试仍失败（${failNote}），降级为静态图…`} />}
         {phase === "limited" && (
           <div className="flex h-full items-center justify-center p-3 text-center text-xs text-amber-700">
-            {limitedInfo || "已达频率上限，稍后自动重试"}
+            {limitedInfo || "已达频率上限，请稍后再试"}
           </div>
         )}
         {phase === "interactive" && diagram?.componentHtml && (

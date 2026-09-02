@@ -75,8 +75,8 @@ export default function Theater({ diagram, bookId, onClose, onJumpToPara, onFoll
         <button
           type="button"
           className="rounded border border-slate-600 px-2 py-0.5 hover:bg-slate-700 disabled:opacity-40"
-          disabled
-          title="对话抽屉将在 M3 接入"
+          disabled={!onFollowUp}
+          title={onFollowUp ? "打开对话抽屉，接着这张图解问" : "对话抽屉未接入"}
           onClick={onFollowUp}
         >
           继续追问

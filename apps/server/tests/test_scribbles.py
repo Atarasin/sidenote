@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 from app.knowledge import mock_behaviors
 from app.llm.mock import MockLLMClient
@@ -198,5 +196,4 @@ def test_intent_user_text_format() -> None:
 
     text = intent_user_text("帮忙讲解", [{"paraId": "c001-p0001", "text": "段落一"}])
     assert "【附言】帮忙讲解" in text
-    assert "[c001-p0001] 段落一" in text  # mock 应答器与真实提示词共享该格式
-    assert json.dumps({})  # json 可用性自检（避免环境缺库误报）
+    assert "[c001-p0001] 段落一" in text  # mock 应答器与真实提示词共享同一格式

@@ -79,6 +79,14 @@ export default function ScribbleLayer({ active, onSubmit, clearToken }: Props) {
     redraw();
   }, [clearToken, redraw]);
 
+  // 模式切换：丢弃画到一半的笔迹（评审 P2-4：切阅读模式后半截笔迹滞留）
+  useEffect(() => {
+    if (!active) {
+      drawingRef.current = null;
+      redraw();
+    }
+  }, [active, redraw]);
+
   // 尺寸变化重画（不重建笔迹）
   useEffect(() => {
     const host = hostRef.current;

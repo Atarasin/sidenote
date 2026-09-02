@@ -25,7 +25,9 @@ interface Props {
   registry: AnchorRegistry;
   handleRef: RefObject<ReaderHandle | null>;
   onChapterChange?: (chapter: Chapter | null) => void;
-  /** 翻页/重渲染后触发（M3 便签重定位，T3.3.1） */
+  /** 翻页/重渲染后触发（M3 便签重定位，T3.3.1）。
+   * 契约：本 effect 仅随 bookId 重建，回调在首挂载时被闭包捕获——
+   * 父组件必须传稳定引用（useCallback 且不依赖易变状态）。 */
   onLayoutChange?: () => void;
 }
 
@@ -70,6 +72,14 @@ export default function EpubReader({
     const annotate = (contents: Contents, chapter: Chapter) => {
       const body = contents.document.body;
       if (!body) return;
+      // iframe 获得焦点后按键不跨 frame 冒泡：把 keydown 转发到主 window
+      // （A/D/Esc 与翻页键统一由主 window 处理；iframe 内输入框聚焦时不转发）
+      contents.document.addEventListener("keydown", (e: Event) => {
+        const ke = e as KeyboardEvent;
+        const t = ke.target as HTMLElement | null;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: ke.key, bubbles: true }));
+      });
       const blocks = [...body.querySelectorAll(BLOCK_SELECTOR)] as HTMLElement[];
       const topBlocks = blocks.filter((el) => !el.parentElement?.closest(BLOCK_SELECTOR));
       const assignments = alignBlocksToParas(

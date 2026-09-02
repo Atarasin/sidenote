@@ -47,8 +47,6 @@ function findCanvas(root: HTMLElement, rect: Rect): HTMLCanvasElement | null {
 function textLineRanges(doc: Document, node: Text): Range[] {
   const full = doc.createRange();
   full.selectNodeContents(node);
-  const fullRect = full.getBoundingClientRect();
-  if (fullRect.width === 0 && fullRect.height === 0) return [];
   const len = node.textContent?.length ?? 0;
   if (len === 0 || len > 2000) return [full];
   // 逐字符探测行顶变化切行（只有与选区相交的节点会走到这里，成本可控）
@@ -113,21 +111,34 @@ function paintIframeText(
       const parent = node.parentElement;
       const tag = parent?.tagName;
       if (parent && (node.textContent ?? "").trim() && tag !== "SCRIPT" && tag !== "STYLE") {
-        for (const range of textLineRanges(doc, node)) {
-          const elRect = range.getBoundingClientRect(); // iframe 视口坐标
-          const local = {
-            x: elRect.left + originX,
-            y: elRect.top + originY,
-            width: elRect.width,
-            height: elRect.height,
-          };
-          if (intersects(local, rect)) {
-            ctx.fillText(
-              range.toString(),
-              local.x - rect.x + 2,
-              local.y - rect.y + Math.min(local.height, 16),
-              Math.max(local.width, 20),
-            );
+        // 节点级粗筛先行：整节点都不与选区相交就不做逐字符切行
+        //（epub.js 载整章 DOM，长章节逐字符 getClientRects 会阻塞主线程）
+        const probe = doc.createRange();
+        probe.selectNodeContents(node);
+        const pr = probe.getBoundingClientRect();
+        const nodeLocal = {
+          x: pr.left + originX,
+          y: pr.top + originY,
+          width: pr.width,
+          height: pr.height,
+        };
+        if (nodeLocal.width > 0 && intersects(nodeLocal, rect)) {
+          for (const range of textLineRanges(doc, node)) {
+            const elRect = range.getBoundingClientRect(); // iframe 视口坐标
+            const local = {
+              x: elRect.left + originX,
+              y: elRect.top + originY,
+              width: elRect.width,
+              height: elRect.height,
+            };
+            if (intersects(local, rect)) {
+              ctx.fillText(
+                range.toString(),
+                local.x - rect.x + 2,
+                local.y - rect.y + Math.min(local.height, 16),
+                Math.max(local.width, 20),
+              );
+            }
           }
         }
       }
