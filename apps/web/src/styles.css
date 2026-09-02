@@ -18,3 +18,39 @@ body {
   color: var(--ink);
   font-family: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
+
+/* ---------- 阅读器 ---------- */
+
+/* PDF 文本层：透明文字承载选区与锚点（T0.3.2 / T0.3.3） */
+.pdf-text-layer span {
+  position: absolute;
+  color: transparent;
+  cursor: text;
+  transform-origin: 0 0;
+  line-height: 1;
+}
+
+.pdf-text-layer span::selection,
+.pdf-text-layer .pdf-para span::selection {
+  background: rgb(147 197 253 / 0.55);
+}
+
+/* 锚点定位闪烁高亮（2s，M3 引用回跳复用） */
+.anchor-flash {
+  animation: anchor-flash 2s ease-out;
+}
+
+@keyframes anchor-flash {
+  0%,
+  60% {
+    background: rgb(250 204 21 / 0.6);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* EPUB 视图容器 */
+.epub-view {
+  background: white;
+}

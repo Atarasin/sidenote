@@ -89,3 +89,11 @@ def test_upload_same_file_dedupes(client, tiny_epub) -> None:
 
 def test_get_missing_book_404(client) -> None:
     assert client.get("/api/books/" + "0" * 16).status_code == 404
+
+
+def test_get_source_returns_original_bytes(client, storage, tiny_epub) -> None:
+    meta = _upload(client, tiny_epub).json()
+    resp = client.get(f"/api/books/{meta['bookId']}/source")
+    assert resp.status_code == 200
+    assert resp.content == tiny_epub.read_bytes()
+    assert resp.headers["content-type"].startswith("application/epub+zip")

@@ -176,6 +176,21 @@ def get_bookdoc(book_id: str, request: Request):
 
 _FIGURE_NAME_RE = re.compile(r"^[\w.\-]+$")
 
+_MEDIA_BY_FORMAT = {"epub": "application/epub+zip", "pdf": "application/pdf"}
+
+
+@router.get("/{book_id}/source")
+def get_source(book_id: str, request: Request) -> FileResponse:
+    """书籍原文件（渲染器直接消费；本地服务，不外发）。"""
+    storage = _get_storage(request)
+    meta = storage.read_meta(book_id)
+    if meta is None:
+        raise HTTPException(status_code=404, detail="书籍不存在")
+    path = storage.source_path(book_id, meta.format)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="原文件缺失")
+    return FileResponse(path, media_type=_MEDIA_BY_FORMAT.get(meta.format))
+
 
 @router.get("/{book_id}/figures/{figure_file}")
 def get_figure(book_id: str, figure_file: str, request: Request) -> FileResponse:

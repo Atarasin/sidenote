@@ -32,6 +32,8 @@ export interface Chapter {
   id: string;
   title: string;
   paras: Para[];
+  /** EPUB 专用：spine 文档名（渲染层锚点映射用） */
+  href?: string;
 }
 
 export interface Figure {

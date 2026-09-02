@@ -47,6 +47,7 @@ class Chapter(BaseModel):
     id: str = Field(pattern=CHAPTER_ID_PATTERN)
     title: str
     paras: list[Para] = Field(default_factory=list)
+    href: str | None = None  # EPUB 专用：spine 文档名（渲染层锚点映射用）
 
 
 class Figure(BaseModel):

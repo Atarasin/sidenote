@@ -149,7 +149,7 @@ def _extract_chapters(book, ctx: ParseContext):
 
         if paras or chapter_figures:
             title = _first_heading_text(body) or _stem(item.get_name() or "")
-            chapters.append(Chapter(id=chapter_id, title=title, paras=paras))
+            chapters.append(Chapter(id=chapter_id, title=title, paras=paras, href=item.get_name()))
             figures.extend(chapter_figures)
             for variant in _href_variants(item.get_name() or ""):
                 href_index[variant] = ch_idx
