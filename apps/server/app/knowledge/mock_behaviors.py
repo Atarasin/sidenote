@@ -63,9 +63,90 @@ def glossary(messages: list[ChatMessage], _role: Role, _purpose: str) -> str:
     return json.dumps(items, ensure_ascii=False)
 
 
+_PARA_LINE = re.compile(r"^\[([a-z0-9-]+)\]\s*(.+)$", re.M)
+_QA_HIT_THRESHOLD = 1  # 关键词 bigram 命中数下限（bigram 本身特异性足以挡住无关问题）
+
+
+_QUESTION_WORDS = (
+    "是什么意思",
+    "指的是",
+    "是什么",
+    "有什么用",
+    "怎么",
+    "如何",
+    "为什么",
+    "哪些",
+    "什么时候",
+    "什么",
+    "请问",
+    "一下",
+    "书中",
+    "全书",
+    "的意思",
+    "定义",
+    "是指",
+    "吗",
+    "呢",
+    "讲讲",
+    "谈谈",
+)
+
+# 单字虚词/动词尾巴（在内容段边缘常见）
+_PARTICLE_CHARS = "的了吗呢吧是在和与对把被从讲说谈怎给跟有"
+
+
+def _content_segments(question: str) -> list[str]:
+    """去掉疑问虚词与常见单字虚词后的内容段（≥2 字）；同话题判定用整段子串匹配，
+    避免跨词 bigram（如「相对」）或被疑问词截断的 n-gram 误命中。"""
+    cleaned = re.sub(r"[\s\W]+", "", question)
+    for word in _QUESTION_WORDS:
+        cleaned = cleaned.replace(word, " ")
+    cleaned = "".join(ch if ch not in _PARTICLE_CHARS else " " for ch in cleaned)
+    segments = [seg for seg in cleaned.split() if len(seg) >= 2]
+    return segments
+
+
+def qa(messages: list[ChatMessage], _role: Role, _purpose: str) -> str:
+    """离线检索式问答：在上下文段落中按问题关键词找依据段落。
+
+    引用的 quote 取该段落的完整原句 → 引用校验必然通过（红线 2 的 mock 侧保证）。
+    找不到依据 → hasBasis=false（无据拒答语义与真实模型一致）。
+    """
+    corpus = ""
+    for m in messages:
+        corpus += m.content
+    question = ""
+    # 单行匹配（不带 re.S）：问题行之后还拼有输出格式说明，不能吞进来
+    q_match = re.search(r"【问题】(.+)", corpus)
+    if q_match:
+        question = q_match.group(1).strip()
+
+    paras: list[tuple[str, str]] = _PARA_LINE.findall(corpus)
+    segments = _content_segments(question)
+    scored: list[tuple[int, str, str]] = []
+    for para_id, text in paras:
+        hits = sum(len(seg) for seg in segments if seg in text)
+        scored.append((hits, para_id, text))
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    top = [item for item in scored if item[0] >= _QA_HIT_THRESHOLD][:2]
+    if not top or not question:
+        return json.dumps(
+            {"answer": "书中未涉及", "citations": [], "hasBasis": False}, ensure_ascii=False
+        )
+
+    cites = [{"paraId": pid, "quote": text} for _score, pid, text in top]
+    answer = "根据原文：" + "；".join(text for _s, _p, text in top)
+    return json.dumps(
+        {"answer": answer, "citations": cites, "hasBasis": True}, ensure_ascii=False
+    )
+
+
 def dispatch(messages: list[ChatMessage], role: Role, purpose: str) -> str:
     if purpose == "chapter_summary":
         return chapter_summary(messages, role, purpose)
     if purpose == "glossary":
         return glossary(messages, role, purpose)
+    if purpose == "qa":
+        return qa(messages, role, purpose)
     return f"（离线模式：未配置模型 API key，purpose={purpose}）"

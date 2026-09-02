@@ -152,7 +152,7 @@ def needs_witness(question: str, current_chapter_text: str) -> bool:
     return hit / len(keywords) < 0.4
 
 
-_STOP_KEYWORDS = {"什么", "怎么", "如何", "为什么", "哪些", "哪些", "请问", "一下", "书中"}
+_STOP_KEYWORDS = {"什么", "怎么", "如何", "为什么", "哪些", "请问", "一下", "书中"}
 
 
 def _extract_keywords(question: str) -> list[str]:

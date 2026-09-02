@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.books.models import BookDoc, Chapter, DocMeta, Para, make_para_id
 from app.knowledge import mock_behaviors
 from app.knowledge.builder import build_book_knowledge
@@ -103,7 +102,7 @@ async def test_failed_chapter_skipped_and_retryable(storage, doc) -> None:
             self.provider = "flaky"
             self.fail_chapter = fail_chapter
 
-        async def chat(self, role, messages, **kwargs):  # noqa: ANN001, ANN202
+        async def chat(self, role, messages, **kwargs):
             content = "".join(m.content for m in messages)
             if self.fail_chapter and self.fail_chapter in content:
                 raise ModelError("provider", "boom")
@@ -154,9 +153,13 @@ def test_chapter_block_and_assemble(storage, doc, mock_llm) -> None:
 
     # 旁证装载
     msgs3 = assemble_messages(
-        knowledge, doc, "全书怎么讲弹性？", chapter_id="c001", witness_chunks=[{"paraIds": ["c002-p0001"], "text": "需求价格弹性是…"}]
+        knowledge,
+        doc,
+        "全书怎么讲弹性？",
+        chapter_id="c001",
+        witness_chunks=[{"id": "c002-p0001", "text": "需求价格弹性是需求量对价格变化的敏感程度。"}],
     )
-    assert "【其他章节旁证】" in msgs3[1].content
+    assert "[c002-p0001]" in msgs3[1].content
 
 
 # ---------- Slice 1.4：旁证检索 ----------

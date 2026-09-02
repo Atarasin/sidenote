@@ -48,14 +48,13 @@ def chapter_block(doc, chapter_id: str) -> str:
     return "\n".join(lines)
 
 
-def witness_block(chunks: list[dict]) -> str:
-    """旁证块（T1.4.2 装载进上下文）。chunks: [{chapterId, paraIds, text}]"""
-    if not chunks:
+def witness_block(paras: list[dict]) -> str:
+    """旁证段落（T1.4.2 装载进上下文）：[{id, text}] 逐段 [paraId] 行，与当前章节同格式，
+    引用校验与 mock 检索对两种上下文一视同仁。"""
+    if not paras:
         return ""
     lines = ["【其他章节旁证】"]
-    for chunk in chunks:
-        ids = ",".join(chunk.get("paraIds", []))
-        lines.append(f"（旁证，段落 {ids}）{chunk.get('text', '')}")
+    lines.extend(f"[{p['id']}] {p['text']}" for p in paras)
     return "\n".join(lines)
 
 
