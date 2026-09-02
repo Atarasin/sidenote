@@ -14,9 +14,21 @@ interface Props {
   toc: TocItem[];
   onJump: (item: TocItem) => void;
   children: React.ReactNode;
+  /** 工具条附加按钮（M2 图解演示入口；M3 由圈选动线替代） */
+  toolbarExtra?: React.ReactNode;
+  /** 页边便签内容（M2 图解小卡先挂右侧；M3 便签卡复用同一挂点） */
+  marginNotes?: React.ReactNode;
 }
 
-export default function ReaderShell({ title, chapter, toc, onJump, children }: Props) {
+export default function ReaderShell({
+  title,
+  chapter,
+  toc,
+  onJump,
+  children,
+  toolbarExtra,
+  marginNotes,
+}: Props) {
   const [tocOpen, setTocOpen] = useState(false);
 
   useEffect(() => {
@@ -52,6 +64,7 @@ export default function ReaderShell({ title, chapter, toc, onJump, children }: P
         </div>
 
         <div className="flex items-center gap-3 text-[11px] text-stone-400">
+          {toolbarExtra}
           {/* 对话入口占位（M3 / U5） */}
           <span
             className="hidden rounded-lg border border-dashed border-stone-300 px-2 py-1 sm:inline-block"
@@ -95,14 +108,16 @@ export default function ReaderShell({ title, chapter, toc, onJump, children }: P
             </button>
           </div>
 
-          {/* 窄屏：便签位退化为书页底部堆叠（占位，M3 挂便签） */}
-          <div className="mt-3 h-40 shrink-0 overflow-y-auto rounded-lg border border-dashed border-stone-300 bg-white/60 p-3 text-xs text-stone-400 lg:hidden">
-            便签区（窄屏底部堆叠 · M3 接入）
+          {/* 窄屏：便签位退化为书页底部堆叠（M3 挂便签；M2 图解小卡先复用） */}
+          <div className="mt-3 flex max-h-44 shrink-0 flex-col gap-2 overflow-y-auto rounded-lg border border-dashed border-stone-300 bg-white/60 p-3 text-xs text-stone-400 lg:hidden">
+            {marginNotes ?? "便签区（窄屏底部堆叠 · M3 接入）"}
           </div>
         </main>
 
-        {/* 右页边便签区（15rem，占位） */}
-        <aside className="hidden w-[15rem] shrink-0 lg:block" aria-hidden />
+        {/* 右页边便签区（15rem）：M2 图解小卡 / M3 便签卡挂点 */}
+        <aside className="hidden w-[15rem] shrink-0 space-y-3 overflow-y-auto py-4 lg:block">
+          {marginNotes}
+        </aside>
 
         {/* 目录滑出面板（浮层，不重排书页） */}
         <div
