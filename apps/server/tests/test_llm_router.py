@@ -54,7 +54,7 @@ def test_mock_backend_usage_logged(storage) -> None:
     from app.llm.types import ChatMessage
 
     usage_log = UsageLog(storage)
-    mock = MockLLMClient(usage_log, responder=lambda msgs, role: "离线回答")
+    mock = MockLLMClient(usage_log, responder=lambda msgs, role, purpose: "离线回答")
     result = asyncio.run(
         mock.chat(
             "long_text_qa",

@@ -13,7 +13,8 @@ from typing import Any
 
 from .types import ChatMessage, ChatResult, Role, UsageInfo
 
-Responder = Callable[[list[ChatMessage], Role], str]
+Responder = Callable[[list[ChatMessage], Role, str], str]
+# responder(messages, role, purpose)；按 purpose 分发离线生成逻辑（见 knowledge/mock_behaviors.py）
 
 
 def _default_responder(messages: list[ChatMessage], role: Role) -> str:
@@ -54,7 +55,7 @@ class MockLLMClient:
     ) -> ChatResult:
         self.calls.append(list(messages))
         start = time.monotonic()
-        content = self.responder(list(messages), role)
+        content = self.responder(list(messages), role, purpose)
         prompt_tokens = sum(self._approx_tokens(m.content) for m in messages)
         completion_tokens = self._approx_tokens(content)
 
