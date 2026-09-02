@@ -52,6 +52,7 @@ class LLMClient:
         *,
         book_id: str | None = None,
         purpose: str = "",
+        session_id: str = "",
         extra_body: dict[str, Any] | None = None,
     ) -> ChatResult:
         model = self.config["model"]
@@ -91,6 +92,7 @@ class LLMClient:
                     status="ok",
                     book_id=book_id,
                     purpose=purpose,
+                    extra={"sessionId": session_id} if session_id else None,
                 )
                 return result
             except ModelError as exc:

@@ -8,6 +8,10 @@ upload:
 
 # 模型路由（M1 起生效；api_key 放 config.local.yaml，绝不入库）
 # 选型登记见 docs/2026-08-31_agent辅助阅读器.md §9；价格单位：元/百万 token（以官网为准，可改）
+generation_limits:
+  per_session: 20      # 会话生成频率上限（个/窗口）
+  window_seconds: 3600  # 窗口时长
+
 models:
   routing:
     long_text_qa: deepseek   # 长文理解/问答（可切 kimi）

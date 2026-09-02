@@ -93,10 +93,15 @@ class UsageLog:
                 continue  # 损坏行跳过：不能让单行坏数据打断费用统计（M2 数据源）
         return out
 
-    def summary(self, *, book_id: str | None = None) -> dict[str, Any]:
+    def summary(
+        self, *, book_id: str | None = None, session_id: str | None = None
+    ) -> dict[str, Any]:
         """会话累计统计（费用/次数/缓存命中/失败数）——M2 费用接口与 M3 呈现的数据源。"""
         calls = [
-            c for c in self.read_all() if book_id is None or c.get("bookId") == book_id
+            c
+            for c in self.read_all()
+            if (book_id is None or c.get("bookId") == book_id)
+            and (session_id is None or c.get("sessionId") == session_id)
         ]
         ok = [c for c in calls if c.get("status") == "ok"]
         return {
