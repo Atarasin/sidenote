@@ -11,6 +11,7 @@ import { useEffect, useImperativeHandle, useRef, useState } from "react";
 import type { RefObject } from "react";
 import type { ReaderHandle } from "./EpubReader";
 import type { AnchorRegistry } from "./anchors";
+import { type ItemGeometry, spanOffset, unionBox } from "./pdfLayout";
 import { groupItemsByParas } from "./textAlign";
 
 // workerPort 直接持有 worker 实例，绕开 module-worker 兼容性问题
@@ -39,7 +40,14 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
   // biome-ignore lint/correctness/useExhaustiveDependencies: 文档加载只随书籍实例重建
   useEffect(() => {
     registry.clear();
-    const task = pdfjs.getDocument(`/api/books/${bookId}/source`);
+    // cmaps/standard_fonts 由 vite-plugin-static-copy 提供在 /pdfjs/ 下；
+    // 缺失时 CJK 非嵌入字体 PDF 在浏览器端没有文本层（无锚点、无选中）
+    const task = pdfjs.getDocument({
+      url: `/api/books/${bookId}/source`,
+      cMapUrl: "/pdfjs/cmaps/",
+      cMapPacked: true,
+      standardFontDataUrl: "/pdfjs/standard_fonts/",
+    });
     let cancelled = false;
     task.promise
       .then((pdf) => {
@@ -96,9 +104,7 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
         const chapter = chapterForPage(doc, pageNo - 1);
         const items = content.items as { str: string; transform: number[]; width: number }[];
         layer.replaceChildren();
-        layer.style.position = "relative";
-        layer.style.width = `${canvas.width}px`;
-        layer.style.height = `${canvas.height}px`;
+        // 文本层保持绝对定位覆盖 canvas（类名 absolute inset-0）；写成 relative 会多占一份高度
 
         const paras = chapter?.paras ?? [];
         const { groups } = groupItemsByParas(
@@ -108,7 +114,11 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
 
         // 先量测（绝对页坐标），再创建段落盒，最后按段落盒原点相对放置 span。
         // 顺序不可颠倒：span 必须拿到已定位的段落盒原点，否则选中层会整体偏移。
-        const measure = (item: { str: string; transform: number[]; width: number }) => {
+        const measure = (item: {
+          str: string;
+          transform: number[];
+          width: number;
+        }): ItemGeometry => {
           const tx = pdfjs.Util.transform(viewport.transform, item.transform);
           const fontHeight = Math.hypot(tx[2], tx[3]) || 12;
           const left = tx[4];
@@ -128,26 +138,17 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
           origin: { left: number; top: number },
         ) => {
           const g = measure(item);
+          const off = spanOffset(g, origin);
           const span = document.createElement("span");
           span.textContent = item.str;
           span.style.position = "absolute";
-          span.style.left = `${g.left - origin.left}px`;
-          span.style.top = `${g.top - origin.top}px`;
+          span.style.left = `${off.left}px`;
+          span.style.top = `${off.top}px`;
           span.style.fontSize = `${g.fontHeight}px`;
           span.style.whiteSpace = "pre";
           span.style.pointerEvents = "auto";
           box.appendChild(span);
           return g;
-        };
-
-        const unionBox = (
-          boxes: { left: number; top: number; right: number; bottom: number }[],
-        ) => {
-          const left = Math.min(...boxes.map((b) => b.left));
-          const top = Math.min(...boxes.map((b) => b.top));
-          const right = Math.max(...boxes.map((b) => b.right));
-          const bottom = Math.max(...boxes.map((b) => b.bottom));
-          return { left, top, right, bottom };
         };
 
         const groupedItems = new Set<number>();
@@ -168,7 +169,7 @@ export default function PdfReader({ bookId, doc, registry, handleRef, onChapterC
           box.style.height = `${Math.max(u.bottom - u.top, 1)}px`;
           // 段落盒本身不参与选区/命中，仅作锚点载体；span 负责选中
           box.style.pointerEvents = "none";
-          itemIdxs.forEach((i, k) => place(items[i], box, geometries[k]));
+          itemIdxs.forEach((i) => place(items[i], box, u));
           if (chapter) registry.register(para.id, box, chapter.id);
           layer.appendChild(box);
         }

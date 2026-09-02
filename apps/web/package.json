@@ -9,7 +9,10 @@
     "check": "biome check src",
     "format": "biome format --write src",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "setup:assets": "node scripts/copy-pdfjs-assets.mjs",
+    "predev": "node scripts/copy-pdfjs-assets.mjs",
+    "prebuild": "node scripts/copy-pdfjs-assets.mjs"
   },
   "dependencies": {
     "epubjs": "^0.3.93",

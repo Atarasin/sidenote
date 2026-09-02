@@ -39,3 +39,6 @@ apps/server/config.local.yaml
 
 # TypeScript 增量构建缓存
 *.tsbuildinfo
+
+# pdf.js 静态资源（由 setup:assets 生成）
+apps/web/public/pdfjs/
