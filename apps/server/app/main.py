@@ -7,6 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .books.routes import router as books_router
 from .config import data_root
+from .knowledge import mock_behaviors
+from .knowledge.routes import router as knowledge_router
+from .llm.mock import MockLLMClient
+from .llm.usage import UsageLog
+from .qa.routes import router as qa_router
 from .storage import Storage
 
 VITE_DEV_ORIGINS = [
@@ -25,6 +30,11 @@ def create_app(storage: Storage | None = None) -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(books_router, prefix="/api/books")
+    app.include_router(knowledge_router, prefix="/api/books")
+    app.include_router(qa_router, prefix="/api/books")
+    # 模型层共享实例：计费日志 + 无 key 时的离线 mock（按 purpose 分发生成行为）
+    app.state.usage_log = UsageLog(app.state.storage)
+    app.state.mock_llm = MockLLMClient(app.state.usage_log, responder=mock_behaviors.dispatch)
 
     @app.get("/api/health")
     def health() -> dict:

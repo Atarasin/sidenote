@@ -6,5 +6,27 @@ server:
 upload:
   max_bytes: 314572800 # 300MB
 
-# 模型路由（M1 起生效；key 放 config.local.yaml，绝不入库）
-models: {}
+# 模型路由（M1 起生效；api_key 放 config.local.yaml，绝不入库）
+# 选型登记见 docs/2026-08-31_agent辅助阅读器.md §9；价格单位：元/百万 token（以官网为准，可改）
+models:
+  routing:
+    long_text_qa: deepseek   # 长文理解/问答（可切 kimi）
+    vision: glm_vision       # 截图理解（M3 用）
+    text_to_image: cogview   # 文生图兜底（M2 用）
+  providers:
+    deepseek:
+      endpoint: https://api.deepseek.com/v1
+      model: deepseek-chat
+      price: { input_per_m: 2.0, output_per_m: 8.0, cache_hit_per_m: 0.2 }
+    kimi:
+      endpoint: https://api.moonshot.cn/v1
+      model: moonshot-v1-32k
+      price: { input_per_m: 24.0, output_per_m: 24.0, cache_hit_per_m: 6.0 }
+    glm_vision:
+      endpoint: https://open.bigmodel.cn/api/paas/v4
+      model: glm-4v-plus
+      price: { input_per_m: 10.0, output_per_m: 10.0, cache_hit_per_m: 2.5 }
+    cogview:
+      endpoint: https://open.bigmodel.cn/api/paas/v4
+      model: cogview-3-plus
+      price: { input_per_m: 0, output_per_m: 0, cache_hit_per_m: 0 }  # 按张计费，M2 接入时补登记
