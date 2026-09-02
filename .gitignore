@@ -20,3 +20,13 @@ dist/
 .idea/
 .vscode/
 *.swp
+
+# 本地运行时数据（书籍、缓存、费用记录，绝不能入库）
+data/
+
+# execute-plan 里程碑 worktree
+.claude/
+
+# 本地配置
+apps/server/config.local.yaml
+*.local.yaml
