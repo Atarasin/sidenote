@@ -2,7 +2,7 @@
 
 > 在书页上涂写向 AI 提问的深度阅读器：AI 通读全书，把晦涩概念画成交互动画，旁注钉在页边。
 
-**当前状态：设计已定稿（架构 + UI/UX 均经多轮评审），实现尚未开始。**
+**当前状态：开发中（M0 能打开书）。设计已定稿（架构 + UI/UX 均经多轮评审）。**
 
 ---
 
@@ -75,6 +75,31 @@ M0 能打开书 → M1 能聊书 → M2 能画图 → M3 能涂写
 **技术栈（执行时可等价替换）**：前端 EPUB.js + PDF.js + Canvas 涂写覆盖层；后端 Python FastAPI 或 Node.js 本地服务；模型路由 DeepSeek（文本）/ Kimi、GLM（长文与视觉）。
 
 **二期候选**：扫描版 PDF 的 OCR、手写笔（压感/防误触）深度优化、多书库与产品化（账号 / 计费 / 版权）。
+
+## 开发上手
+
+```bash
+# 后端依赖（Python 3.12，仓库根 .venv）
+python -m venv .venv
+.venv/Scripts/python -m pip install -r apps/server/requirements-dev.txt   # Windows
+# .venv/bin/python -m pip install -r apps/server/requirements-dev.txt     # Linux/macOS
+
+# 前端依赖
+cd apps/web && npm install
+
+# 一键起前后端（后端 127.0.0.1:8787，前端 localhost:5173，/api 已代理）
+scripts/dev.sh
+```
+
+常用检查（提交前）：
+
+```bash
+.venv/Scripts/python -m pytest apps/server        # 后端测试
+.venv/Scripts/python -m ruff check apps/server    # 后端 lint
+cd apps/web && npm run check && npm run test && npm run build  # 前端 lint / 测试 / 构建
+```
+
+运行时数据（书籍、缓存、费用记录）都在本地 `data/` 目录，已被 gitignore，绝不入库。
 
 ## 工作方式说明
 

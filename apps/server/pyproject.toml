@@ -1,0 +1,19 @@
+[project]
+name = "sidenote-server"
+version = "0.1.0"
+description = "sidenote 本地后端：书籍解析、上下文管理、模型路由、生成与缓存"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+# RUF001~003：全角标点在中文正文/注释/文档串中是正常用法，关闭误报
+ignore = ["RUF001", "RUF002", "RUF003", "RUF012"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

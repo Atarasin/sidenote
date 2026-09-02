@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "bookId": "0123456789abcdef",
+    "title": "经济学原理（示例）",
+    "authors": ["示例作者"],
+    "format": "epub",
+    "fileHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+  },
+  "toc": [
+    {
+      "id": "toc-001",
+      "title": "第一章 供给与需求",
+      "chapterId": "c001",
+      "children": [
+        {
+          "id": "toc-001-01",
+          "title": "均衡价格",
+          "chapterId": "c001",
+          "paraId": "c001-p0003"
+        }
+      ]
+    }
+  ],
+  "chapters": [
+    {
+      "id": "c001",
+      "title": "第一章 供给与需求",
+      "paras": [
+        {
+          "id": "c001-p0001",
+          "text": "供给与需求是经济学最基本的两个概念。"
+        },
+        {
+          "id": "c001-p0002",
+          "text": "当供给曲线与需求曲线相交时，市场达到均衡。"
+        },
+        {
+          "id": "c001-p0003",
+          "text": "均衡价格 P0 由市场自发形成，无需外部干预。"
+        }
+      ]
+    }
+  ],
+  "figures": [
+    {
+      "id": "fig-c001-01",
+      "chapterId": "c001",
+      "imgPath": "figures/fig-c001-01.png",
+      "caption": "图 1-1 供需均衡示意图"
+    }
+  ]
+}
