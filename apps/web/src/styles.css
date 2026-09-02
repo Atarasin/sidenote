@@ -21,6 +21,11 @@ body {
 
 /* ---------- 阅读器 ---------- */
 
+/* 书页正文衬线字体栈（UI 文档 §3.1 / §3.8）*/
+.book-page {
+  font-family: "Noto Serif SC", "Songti SC", "SimSun", Georgia, serif;
+}
+
 /* PDF 文本层：透明文字承载选区与锚点（T0.3.2 / T0.3.3） */
 .pdf-text-layer span {
   position: absolute;

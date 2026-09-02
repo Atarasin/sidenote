@@ -64,6 +64,12 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
       allowScriptedContent: false,
     });
     renditionRef.current = rendition;
+    // 纸感主题：正文衬线字体栈注入 iframe（UI 文档 §3.1 / §3.8）
+    rendition.themes.default({
+      "body, p, h1, h2, h3, h4, h5, h6, li, blockquote, pre": {
+        "font-family": '"Noto Serif SC", "Songti SC", "SimSun", Georgia, serif',
+      },
+    });
     void rendition.display();
 
     const annotate = (contents: Contents, chapter: Chapter) => {
