@@ -25,6 +25,10 @@ interface Props {
   registry: AnchorRegistry;
   handleRef: RefObject<ReaderHandle | null>;
   onChapterChange?: (chapter: Chapter | null) => void;
+  /** 翻页/重渲染后触发（M3 便签重定位，T3.3.1）。
+   * 契约：本 effect 仅随 bookId 重建，回调在首挂载时被闭包捕获——
+   * 父组件必须传稳定引用（useCallback 且不依赖易变状态）。 */
+  onLayoutChange?: () => void;
 }
 
 function basename(href: string): string {
@@ -41,7 +45,14 @@ function scrollElIntoEpubPage(el: HTMLElement): void {
   docEl.scrollLeft = Math.max(0, Math.floor(x / pageWidth) * pageWidth);
 }
 
-export default function EpubReader({ bookId, doc, registry, handleRef, onChapterChange }: Props) {
+export default function EpubReader({
+  bookId,
+  doc,
+  registry,
+  handleRef,
+  onChapterChange,
+  onLayoutChange,
+}: Props) {
   const viewRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<Rendition | null>(null);
   const pendingPara = useRef<string | null>(null);
@@ -61,6 +72,14 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
     const annotate = (contents: Contents, chapter: Chapter) => {
       const body = contents.document.body;
       if (!body) return;
+      // iframe 获得焦点后按键不跨 frame 冒泡：把 keydown 转发到主 window
+      // （A/D/Esc 与翻页键统一由主 window 处理；iframe 内输入框聚焦时不转发）
+      contents.document.addEventListener("keydown", (e: Event) => {
+        const ke = e as KeyboardEvent;
+        const t = ke.target as HTMLElement | null;
+        if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+        window.dispatchEvent(new KeyboardEvent("keydown", { key: ke.key, bubbles: true }));
+      });
       const blocks = [...body.querySelectorAll(BLOCK_SELECTOR)] as HTMLElement[];
       const topBlocks = blocks.filter((el) => !el.parentElement?.closest(BLOCK_SELECTOR));
       const assignments = alignBlocksToParas(
@@ -95,6 +114,7 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
         annotate(contents, chapter);
         onChapterChange?.(chapter);
       }
+      onLayoutChange?.();
     };
 
     let book: Book | null = null;
@@ -118,6 +138,8 @@ export default function EpubReader({ bookId, doc, registry, handleRef, onChapter
         });
         renditionRef.current = rendition;
         rendition.on("rendered", onRendered as never);
+        // relocated：翻页/跳转后段落矩形变化 → 便签重定位
+        rendition.on("relocated", () => onLayoutChange?.());
         // 纸感主题：正文衬线字体栈注入 iframe（UI 文档 §3.1 / §3.8）
         rendition.themes.default({
           "body, p, h1, h2, h3, h4, h5, h6, li, blockquote, pre": {

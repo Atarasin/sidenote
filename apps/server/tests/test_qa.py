@@ -265,3 +265,22 @@ async def test_retry_round_keeps_original_context(storage) -> None:
     # 重答轮保留首答内容与反馈
     assert any(m.role == "assistant" for m in captured[1])
     assert any("已被丢弃" in m.content for m in captured[1] if m.role == "user")
+
+
+@pytest.mark.asyncio
+async def test_qa_usage_records_session_id(prepared) -> None:
+    """T3.5.4 联调一致：问答调用必须带 sessionId 入账（会话费用不漏计）。"""
+    storage, usage_log, backend, doc = prepared
+    result = await answer_question(
+        storage,
+        usage_log,
+        backend,
+        doc.meta.bookId,
+        doc.chapters[0].paras[0].text[:8],
+        "c001",
+        session_id="s-e2e",
+    )
+    assert result.answer
+    qa_entries = [e for e in usage_log.read_all() if e["purpose"] == "qa"]
+    assert qa_entries, "问答必须写入 usage 日志"
+    assert all(e.get("sessionId") == "s-e2e" for e in qa_entries)

@@ -22,6 +22,8 @@ interface Props {
   onOpenTheater?: (d: DiagramPayload) => void;
   onJumpToPara?: (paraId: string) => void;
   onClose?: () => void;
+  /** 任一请求落定后触发（M3 费用刷新，S3.5） */
+  onSettled?: () => void;
 }
 
 const CARD_FG = "#1f2937"; // 浅色小卡前景（双容器配色：剧场由 Theater 提供深色）
@@ -33,6 +35,7 @@ export default function DiagramCard({
   onOpenTheater,
   onJumpToPara,
   onClose,
+  onSettled,
 }: Props) {
   const [phase, setPhase] = useState<Phase>("generating");
   const [diagram, setDiagram] = useState<DiagramPayload | null>(null);
@@ -41,6 +44,8 @@ export default function DiagramCard({
   const [limitedInfo, setLimitedInfo] = useState<string>("");
   const started = useRef(false);
   const failCount = useRef(0);
+  const settledRef = useRef(onSettled);
+  settledRef.current = onSettled;
 
   const degrade = useCallback(() => {
     setPhase("degrading");
@@ -52,31 +57,36 @@ export default function DiagramCard({
       .catch(() => {
         // 降级请求本身失败：退到无图讲解态（后端缓存里可能有早前降级产物）
         setPhase("degraded");
-      });
+      })
+      .finally(() => settledRef.current?.());
   }, [bookId, paraId, concept]);
 
   const request = useCallback(
     async (stage: "first" | "repair", failReason = "") => {
-      const result = await createDiagram(bookId, {
-        paraId,
-        concept,
-        repair: stage === "repair",
-        failReason,
-      });
-      if ("limited" in result) {
-        setLimitedInfo(`${result.detail}（${result.rateLimit.used}/${result.rateLimit.limit}）`);
-        setPhase("limited");
+      try {
+        const result = await createDiagram(bookId, {
+          paraId,
+          concept,
+          repair: stage === "repair",
+          failReason,
+        });
+        if ("limited" in result) {
+          setLimitedInfo(`${result.detail}（${result.rateLimit.used}/${result.rateLimit.limit}）`);
+          setPhase("limited");
+          return result;
+        }
+        setDiagram(result);
+        if (result.kind === "degraded") {
+          setPhase("degraded"); // 缓存里已是降级态
+        } else if (result.kind === "interactive" && result.componentHtml) {
+          setPhase("interactive");
+        }
+        // kind === "incomplete"（产物不完整/引用未过校验）：不进 interactive，
+        // 由调用方按失败处置（修复或降级），绝不渲染空组件白屏（评审 D1）
         return result;
+      } finally {
+        settledRef.current?.();
       }
-      setDiagram(result);
-      if (result.kind === "degraded") {
-        setPhase("degraded"); // 缓存里已是降级态
-      } else if (result.kind === "interactive" && result.componentHtml) {
-        setPhase("interactive");
-      }
-      // kind === "incomplete"（产物不完整/引用未过校验）：不进 interactive，
-      // 由调用方按失败处置（修复或降级），绝不渲染空组件白屏（评审 D1）
-      return result;
     },
     [bookId, paraId, concept],
   );
@@ -150,7 +160,7 @@ export default function DiagramCard({
         {phase === "degrading" && <Skeleton label={`重试仍失败（${failNote}），降级为静态图…`} />}
         {phase === "limited" && (
           <div className="flex h-full items-center justify-center p-3 text-center text-xs text-amber-700">
-            {limitedInfo || "已达频率上限，稍后自动重试"}
+            {limitedInfo || "已达频率上限，请稍后再试"}
           </div>
         )}
         {phase === "interactive" && diagram?.componentHtml && (

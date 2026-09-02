@@ -16,7 +16,7 @@ from typing import Any
 import httpx
 
 from .errors import ModelError, ModelNetworkError, ModelTimeoutError, from_http_status
-from .types import ChatMessage, ChatResult, Role, UsageInfo
+from .types import ChatMessage, ChatResult, Role, UsageInfo, content_text
 from .usage import UsageLog
 
 _RETRYABLE_KINDS = {"timeout", "rate_limit", "network", "provider_5xx"}
@@ -127,9 +127,11 @@ class LLMClient:
 
     def _parse_response(self, data: dict[str, Any], model: str) -> ChatResult:
         try:
-            content = data["choices"][0]["message"]["content"] or ""
+            raw_content = data["choices"][0]["message"]["content"] or ""
         except (KeyError, IndexError, TypeError) as exc:
             raise ModelError("provider", f"响应结构异常：{data}") from exc
+        # 个别兼容端点对视觉请求回分段 content：拼接 text 段
+        content = content_text(raw_content) if isinstance(raw_content, list) else raw_content
         usage_raw = data.get("usage") or {}
         usage = UsageInfo(
             prompt_tokens=int(usage_raw.get("prompt_tokens", 0)),

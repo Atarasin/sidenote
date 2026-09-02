@@ -14,10 +14,24 @@ interface Props {
   toc: TocItem[];
   onJump: (item: TocItem) => void;
   children: React.ReactNode;
-  /** 工具条附加按钮（M2 图解演示入口；M3 由圈选动线替代） */
+  /** 工具条右侧附加按钮 */
   toolbarExtra?: React.ReactNode;
-  /** 页边便签内容（M2 图解小卡先挂右侧；M3 便签卡复用同一挂点） */
+  /** 中央模式开关（M3 阅读/圈选分段开关，U2） */
+  modeToggle?: React.ReactNode;
+  /** 对话入口（M3 抽屉三入口之一，U5） */
+  chatEntry?: React.ReactNode;
+  /** 费用徽章（M3 S3.5 常驻，U6） */
+  costBadge?: React.ReactNode;
+  /** 书页内浮层（M3 涂写层；绝对定位于书页之上） */
+  pageOverlay?: React.ReactNode;
+  /** 页边便签内容：宽屏右栏（M3 由 StickyBoard 定位呈现）；窄屏由 bottomNotes 堆叠 */
   marginNotes?: React.ReactNode;
+  /** 窄屏（<1024px）底部堆叠内容（T3.3.6） */
+  bottomNotes?: React.ReactNode;
+  /** 全书地图入口（T3.4.6：目录面板顶部双入口之一） */
+  onOpenMap?: () => void;
+  /** 书页容器引用（M3 便签定位的坐标基准） */
+  pageRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 export default function ReaderShell({
@@ -27,7 +41,14 @@ export default function ReaderShell({
   onJump,
   children,
   toolbarExtra,
+  modeToggle,
+  chatEntry,
+  costBadge,
+  pageOverlay,
   marginNotes,
+  bottomNotes,
+  onOpenMap,
+  pageRef,
 }: Props) {
   const [tocOpen, setTocOpen] = useState(false);
 
@@ -54,31 +75,35 @@ export default function ReaderShell({
           <span>{chapter?.title ?? ""}</span>
         </div>
 
-        {/* 模式开关占位（M3 / U2 接入） */}
-        <div
-          className="hidden items-center rounded-lg border border-dashed border-stone-300 p-0.5 text-[11px] leading-5 text-stone-400 md:flex"
-          title="阅读 / 圈选模式开关将在 M3 接入"
-        >
-          <span className="rounded-md bg-purple-600 px-2 text-white">阅读</span>
-          <span className="px-2">圈选</span>
-        </div>
+        {/* 模式开关（M3 / U2：阅读 / 圈选，快捷键 A 的等价按钮） */}
+        {modeToggle ?? (
+          <div
+            className="hidden items-center rounded-lg border border-dashed border-stone-300 p-0.5 text-[11px] leading-5 text-stone-400 md:flex"
+            title="阅读 / 圈选模式开关（快捷键 A）"
+          >
+            <span className="rounded-md bg-purple-600 px-2 text-white">阅读</span>
+            <span className="px-2">圈选</span>
+          </div>
+        )}
 
         <div className="flex items-center gap-3 text-[11px] text-stone-400">
           {toolbarExtra}
-          {/* 对话入口占位（M3 / U5） */}
-          <span
-            className="hidden rounded-lg border border-dashed border-stone-300 px-2 py-1 sm:inline-block"
-            title="对话抽屉将在 M3 接入"
-          >
-            💬 对话
-          </span>
-          {/* 费用显示占位（消费 /api/usage/summary 的实装在 M3 S3.5） */}
-          <span
-            className="hidden rounded-lg border border-dashed border-stone-300 px-2 py-1 sm:inline-block"
-            title="费用与限流将在 M3 接入"
-          >
-            ¥0.00 · 本会话
-          </span>
+          {chatEntry ?? (
+            <span
+              className="hidden rounded-lg border border-dashed border-stone-300 px-2 py-1 sm:inline-block"
+              title="对话抽屉（快捷键 D）"
+            >
+              💬 对话
+            </span>
+          )}
+          {costBadge ?? (
+            <span
+              className="hidden rounded-lg border border-dashed border-stone-300 px-2 py-1 sm:inline-block"
+              title="费用数据"
+            >
+              ¥0.00 · 本会话
+            </span>
+          )}
           <a href="#/" className="hover:text-stone-600">
             书架
           </a>
@@ -93,7 +118,10 @@ export default function ReaderShell({
         {/* 中央书页 */}
         <main className="relative flex min-w-0 flex-1 flex-col">
           <div className="relative mx-auto flex min-h-0 w-full max-w-[46rem] flex-1 flex-col bg-white shadow-[0_1px_8px_rgba(0,0,0,0.06)]">
-            <div className="book-page min-h-0 flex-1 overflow-hidden">{children}</div>
+            <div ref={pageRef} className="book-page relative min-h-0 flex-1 overflow-hidden">
+              {children}
+              {pageOverlay}
+            </div>
 
             {/* 目录拉手：书页左缘竖排 */}
             <button
@@ -108,9 +136,9 @@ export default function ReaderShell({
             </button>
           </div>
 
-          {/* 窄屏：便签位退化为书页底部堆叠（M3 挂便签；M2 图解小卡先复用） */}
+          {/* 窄屏：便签位退化为书页底部堆叠（T3.3.6，不遮挡正文） */}
           <div className="mt-3 flex max-h-44 shrink-0 flex-col gap-2 overflow-y-auto rounded-lg border border-dashed border-stone-300 bg-white/60 p-3 text-xs text-stone-400 lg:hidden">
-            {marginNotes ?? "便签区（窄屏底部堆叠 · M3 接入）"}
+            {bottomNotes ?? marginNotes ?? "便签区（圈选提问后出现）"}
           </div>
         </main>
 
@@ -128,14 +156,25 @@ export default function ReaderShell({
         >
           <div className="flex items-center justify-between px-4 py-3 text-xs font-medium text-stone-600">
             目录
-            <button
-              type="button"
-              className="rounded px-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
-              onClick={() => setTocOpen(false)}
-              aria-label="关闭目录"
-            >
-              ✕
-            </button>
+            <span className="flex items-center gap-1">
+              {onOpenMap && (
+                <button
+                  type="button"
+                  className="rounded border border-stone-200 px-1.5 py-0.5 text-[10px] font-normal text-stone-500 hover:bg-stone-100"
+                  onClick={onOpenMap}
+                >
+                  全书地图
+                </button>
+              )}
+              <button
+                type="button"
+                className="rounded px-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                onClick={() => setTocOpen(false)}
+                aria-label="关闭目录"
+              >
+                ✕
+              </button>
+            </span>
           </div>
           <nav className="h-[calc(100%-2.75rem)] overflow-y-auto px-2 pb-4">
             <ul className="space-y-0.5">

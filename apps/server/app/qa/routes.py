@@ -14,6 +14,7 @@ router = APIRouter()
 class AskRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     chapterId: str | None = None
+    sessionId: str = ""
 
 
 class CitationOut(BaseModel):
@@ -51,6 +52,7 @@ async def ask(book_id: str, payload: AskRequest, request: Request) -> AskResultO
             book_id,
             payload.question,
             payload.chapterId,
+            session_id=payload.sessionId,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

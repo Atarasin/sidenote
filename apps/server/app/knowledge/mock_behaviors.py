@@ -197,6 +197,69 @@ def diagram_explain(messages: list[ChatMessage], _role: Role, _purpose: str) -> 
     return "".join(sents[:2])[:120] or "（离线模式讲解）"
 
 
+# 想要图形化解释的附言关键词 → 图解链路（T3.2.3 转接规则）
+_DIAGRAM_WORDS = ("图", "画", "示意", "图示", "曲线图", "画出来")
+# 概念名清理：去掉作图请求里的动词/量词/语气词，只留概念本身
+# （「图」只修剪首尾，避免把「供需曲线图」剥成「供需」）
+_CONCEPT_NOISE = (
+    "画出来",
+    "画个",
+    "画一个",
+    "画张",
+    "给我",
+    "帮忙",
+    "请",
+    "画",
+    "一个",
+    "一下",
+    "张",
+    "幅",
+    "吧",
+    "吗",
+)
+
+
+def scribble_intent(messages: list[ChatMessage], _role: Role, _purpose: str) -> str:
+    """离线涂写意图解析：mock 看不见图，按附言关键词在候选段落中确定性匹配。
+
+    与真实视觉模型同一输入格式（【附言】行 + [paraId] 候选行），接口等价可替换。
+    """
+    from ..llm.types import content_text
+
+    corpus = "\n".join(content_text(m.content) for m in messages)
+    note_m = re.search(r"【附言】(.*)", corpus)
+    note = (note_m.group(1).strip() if note_m else "").replace("（空，未附言）", "")
+    candidates = _PARA_LINE.findall(corpus)
+
+    # 选段：附言内容段与候选文本做子串匹配（复用 QA 的分词规则）；无附言取首个候选
+    para_id, para_text = candidates[0] if candidates else ("", "")
+    if note:
+        segments = _content_segments(note)
+        best: tuple[int, str, str] | None = None
+        for pid, text in candidates:
+            hits = sum(len(seg) for seg in segments if seg in text)
+            if best is None or hits > best[0]:
+                best = (hits, pid, text)
+        if best and best[0] > 0:
+            _, para_id, para_text = best
+
+    question = note if note else f"请讲解：{para_text[:24]}"
+    route = "diagram" if any(w in (note or "") for w in _DIAGRAM_WORDS) else "qa"
+    concept = ""
+    if route == "diagram":
+        cleaned = note
+        for w in _CONCEPT_NOISE:
+            cleaned = cleaned.replace(w, " ")
+        cleaned = re.sub(r"^图+|图+$", "", cleaned.strip())  # 只去首尾的「图」
+        parts = [p for p in cleaned.split() if len(p) >= 2]
+        concept = max(parts, key=len) if parts else ""
+        concept = concept or para_text[:12]
+    return json.dumps(
+        {"paraId": para_id, "question": question, "route": route, "concept": concept},
+        ensure_ascii=False,
+    )
+
+
 def dispatch(messages: list[ChatMessage], role: Role, purpose: str) -> str:
     if purpose == "chapter_summary":
         return chapter_summary(messages, role, purpose)
@@ -208,4 +271,6 @@ def dispatch(messages: list[ChatMessage], role: Role, purpose: str) -> str:
         return diagram(messages, role, purpose)
     if purpose == "diagram_explain":
         return diagram_explain(messages, role, purpose)
+    if purpose == "scribble_intent":
+        return scribble_intent(messages, role, purpose)
     return f"（离线模式：未配置模型 API key，purpose={purpose}）"

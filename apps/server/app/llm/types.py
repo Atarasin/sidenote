@@ -16,8 +16,20 @@ Role = Literal[
 
 @dataclass
 class ChatMessage:
+    """content 为 str；视觉角色（M3 涂写意图）可传 OpenAI 兼容分段列表：
+
+    [{"type": "text", "text": "..."}, {"type": "image_url", "image_url": {"url": "data:..."}}]
+    """
+
     role: Literal["system", "user", "assistant"]
-    content: str
+    content: str | list[dict[str, Any]]
+
+
+def content_text(content: str | list[dict[str, Any]]) -> str:
+    """取消息中的纯文本部分（分段列表只拼 text 段，token 估算与 mock 检索用）。"""
+    if isinstance(content, str):
+        return content
+    return "".join(str(part.get("text", "")) for part in content if part.get("type") == "text")
 
 
 @dataclass
