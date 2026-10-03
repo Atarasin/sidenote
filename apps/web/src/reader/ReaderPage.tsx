@@ -78,6 +78,7 @@ export default function ReaderPage({ bookId }: Props) {
   const [drawerBusy, setDrawerBusy] = useState(false);
   const [drawerHint, setDrawerHint] = useState("本章");
   const [mapOpen, setMapOpen] = useState(false);
+  const [jumpHint, setJumpHint] = useState<string | null>(null);
   const seedRef = useRef<{ question: string; answer: string } | null>(null);
   const sessionId = useMemo(() => getSessionId(), []);
   const { summary: usage, refresh: refreshUsage } = useUsageSummary(sessionId);
@@ -105,8 +106,17 @@ export default function ReaderPage({ bookId }: Props) {
   }, [bookId]);
 
   const onJump = useCallback((item: TocItem) => {
-    handleRef.current?.jumpTo(item);
+    // 跳转失败不得静默（M0 缺陷 #14）：目录项指向解析结果里不存在的章节时给出可见提示
+    const ok = handleRef.current?.jumpTo(item) ?? false;
+    setJumpHint(ok ? null : `「${item.title}」在解析结果里没有对应正文，无法跳转`);
   }, []);
+
+  // 提示 4s 后自动消失
+  useEffect(() => {
+    if (!jumpHint) return;
+    const timer = window.setTimeout(() => setJumpHint(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [jumpHint]);
 
   /** 段落闪烁 2s（引用 chips/↗原文 回跳；跨 iframe 的 DOM 都可用 Web Animations）。 */
   const flashPara = useCallback((paraId: string) => {
@@ -124,12 +134,16 @@ export default function ReaderPage({ bookId }: Props) {
       if (!doc) return;
       const ch = doc.chapters.find((c) => c.paras.some((p) => p.id === paraId));
       if (!ch) return;
-      handleRef.current?.jumpTo({
+      const ok = handleRef.current?.jumpTo({
         id: `para-${paraId}`,
         title: ch.title,
         chapterId: ch.id,
         paraId,
       });
+      if (ok === false) {
+        setJumpHint("该段落不在可跳转的正文里（解析结果缺这一段）");
+        return;
+      }
       window.setTimeout(() => flashPara(paraId), 800); // 跨章渲染后落点闪烁
     },
     [doc, flashPara],
@@ -558,6 +572,13 @@ export default function ReaderPage({ bookId }: Props) {
             });
           }}
         />
+      )}
+
+      {/* 跳转失败提示（禁止静默失败）：目录/引用指向解析结果里不存在的章节或段落 */}
+      {jumpHint && (
+        <div className="pointer-events-none fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-stone-800/90 px-3 py-2 text-xs text-white shadow-lg">
+          {jumpHint}
+        </div>
       )}
     </>
   );

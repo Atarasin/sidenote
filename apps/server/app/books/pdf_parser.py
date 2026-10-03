@@ -6,10 +6,13 @@
 - 章节切分：优先 PDF 内置书签（toc level-1），退化为字号/「第X章」模式识别，再退化为全文单章。
 - 图表兜底（T0.2.5）：嵌入图片块与「矢量密集 + 文字稀疏」的图表区域按原区域截图进 figures，
   该区域内的散落文本（坐标轴数字等）不进入正文，避免乱码上下文。
+  例外：若某页的行绝大部分都落在图片区内，说明那是整页底图（PPT 导出讲义/整页拼版），
+  此时文字层才是正文，整页保留（见 _drop_figure_text）。
 """
 
 from __future__ import annotations
 
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -25,6 +28,7 @@ _MIN_TEXT_CHARS_PER_PAGE = 10  # 每页平均低于此字数视为无文字层�
 _MIN_TEXT_CHARS_TOTAL = 20
 _VECTOR_CHART_MIN_DRAWINGS = 15  # 矢量线条数下限（曲线图/坐标系特征）
 _VECTOR_CHART_MAX_TEXT_CHARS = 600  # 图表页文字量上限
+_FIGURE_SWALLOW_RATIO = 0.6  # 单页被图表区剔除的行数占比达到此值 → 判定为整页底图，整页保留
 
 
 @dataclass
@@ -82,10 +86,18 @@ def parse_pdf(path, ctx: ParseContext) -> BookDoc:
 
     if not chapters or not any(ch.paras for ch in chapters):
         raise ParseError("未从 PDF 中重组出任何正文段落")
-    figures = _figures_from_zones(figure_zones, boundaries)
+    # 目录与图表的章节引用必须与真实存在的章节一致：_build_chapters 会丢弃重组不出段落的
+    # 章节，若仍按 boundaries 全量生成目录，就会出现指向不存在章节的悬空条目——前端按
+    # chapterId 找不到章，目录点击静默无反应（M0 缺陷 #14）。
+    chapter_ids = {ch.id for ch in chapters}
+    chapter_indexes = [
+        b.chapter_index for b in boundaries if make_chapter_id(b.chapter_index) in chapter_ids
+    ]
+    kept_indexes = set(chapter_indexes)
+    figures = _figures_from_zones(figure_zones, boundaries, chapter_indexes)
     toc = [
         TocItem(id=f"toc-{i:03d}", title=b.title, chapterId=make_chapter_id(b.chapter_index))
-        for i, b in enumerate(boundaries, 1)
+        for i, b in enumerate((b for b in boundaries if b.chapter_index in kept_indexes), 1)
     ]
     return BookDoc(meta=meta, toc=toc, chapters=chapters, figures=figures)
 
@@ -388,7 +400,12 @@ def _render_zone(page, rect, pno: int, seq: int, ctx: ParseContext, vector: bool
 def _drop_figure_text(
     page_lines: list[list[_Line]], zones: list[tuple]
 ) -> list[list[_Line]]:
-    """矢量图表区域内的散落文本（坐标轴标签等）不进入正文（不输出乱码文本进上下文）。"""
+    """图表区域内的散落文本（坐标轴标签等）不进入正文（不输出乱码文本进上下文）。
+
+    例外：某页被剔除的行数占到全页行数的 `_FIGURE_SWALLOW_RATIO` 以上时，那块「图片」
+    其实是整页底图（PPT 导出讲义、整页拼版），浮在其上的文字层才是真正的正文——
+    此时整页保留。否则正文会被整页抹掉，章节随之因无段落被丢弃，目录出现悬空条目。
+    """
     zones_by_page: dict[int, list[tuple]] = {}
     for zone in zones:
         zones_by_page.setdefault(zone[0], []).append(zone)
@@ -399,20 +416,28 @@ def _drop_figure_text(
                 return True
         return False
 
-    return [
-        [line for line in lines if not in_zone(line)]
-        for lines in page_lines
-    ]
+    kept_pages: list[list[_Line]] = []
+    for lines in page_lines:
+        if not lines or not zones_by_page.get(lines[0].page):
+            kept_pages.append(list(lines))
+            continue
+        kept = [line for line in lines if not in_zone(line)]
+        swallowed = len(lines) - len(kept) >= max(1, math.ceil(len(lines) * _FIGURE_SWALLOW_RATIO))
+        kept_pages.append(list(lines) if swallowed else kept)
+    return kept_pages
 
 
-def _figures_from_zones(zones: list[tuple], boundaries: list[_Boundary]) -> list[Figure]:
+def _figures_from_zones(
+    zones: list[tuple], boundaries: list[_Boundary], existing_indexes: list[int]
+) -> list[Figure]:
     seen: set[str] = set()
     out: list[Figure] = []
     for page, _x0, y0, _x1, y1, fig_id, caption in zones:
         if fig_id in seen:
             continue
         seen.add(fig_id)
-        ch = _chapter_of(boundaries, page, (y0 + y1) / 2)
+        ch_idx = _chapter_of(boundaries, page, (y0 + y1) / 2)
+        ch = _nearest_existing_chapter(ch_idx, existing_indexes)
         out.append(
             Figure(
                 id=fig_id,
@@ -422,6 +447,14 @@ def _figures_from_zones(zones: list[tuple], boundaries: list[_Boundary]) -> list
             )
         )
     return out
+
+
+def _nearest_existing_chapter(chapter_index: int, existing_indexes: list[int]) -> int:
+    """章节归属吸附：图表不得指向已被丢弃的章节，取不超过它的最近存在章节。"""
+    if not existing_indexes or chapter_index in existing_indexes:
+        return chapter_index
+    lower = [idx for idx in existing_indexes if idx <= chapter_index]
+    return lower[-1] if lower else existing_indexes[0]
 
 # ---------- 元数据 ----------
 

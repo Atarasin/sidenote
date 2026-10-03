@@ -155,3 +155,52 @@ def test_pdf_repeat_parse_is_identical(tmp_path, ctx) -> None:
     doc.save(str(path))
 
     assert parse_pdf(path, ctx).model_dump_json() == parse_pdf(path, ctx).model_dump_json()
+
+
+def test_pdf_full_page_image_keeps_text(tmp_path, ctx) -> None:
+    """整页底图（PPT 导出讲义形态）不得把该页正文连同图片一起剔除（M0 缺陷 #14 根因）。
+
+    原始规则「图片块区域内的文本一律剔除」会把每页底图上的文字层全部删掉，
+    8/10 页正文归零 → 章节因无段落被丢弃 → 目录指向不存在的章节。
+    """
+    import fitz
+
+    doc = _new_doc()
+    page = doc.new_page()
+    page.insert_image(fitz.Rect(36, 30, 559, 812), stream=tiny_png_bytes())
+    _line(page, 60, 80, "第一章 小市值策略导论", 18)
+    _line(page, 60, 120, "若按「图片区内文本一律剔除」处理，本页正文会被整体抹掉。", 11)
+    _line(page, 60, 150, "因此整页底图内的文本必须保留，否则章节会因无段落而被丢弃。", 11)
+    path = tmp_path / "slide.pdf"
+    doc.save(str(path))
+
+    parsed = parse_pdf(path, ctx)
+    joined = "".join(p.text for ch in parsed.chapters for p in ch.paras)
+    assert "本页正文会被整体抹掉" in joined
+    assert "否则章节会因无段落而被丢弃" in joined
+    assert len(parsed.figures) >= 1  # 底图仍作为图表产物留档
+
+
+def test_pdf_toc_has_no_dangling_chapter(tmp_path, ctx) -> None:
+    """章节被丢弃时目录不得留下悬空条目：前端按 chapterId 查不到章会静默不跳转（M0 缺陷 #14）。"""
+    import fitz
+
+    doc = _new_doc()
+    page = doc.new_page()
+    _line(page, 60, 60, "第一章 供给", 18)
+    _line(page, 60, 90, "供给描述生产者的出售意愿。", 11)
+    _line(page, 60, 120, "价格上升时供给量增加。", 11)
+    _line(page, 60, 150, "这是正文的正常段落。", 11)
+    # 第二章整章落在插图区内 → 该章文本按图表兜底剔除 → 章节重组不出段落被丢弃
+    page.insert_image(fitz.Rect(50, 200, 550, 600), stream=tiny_png_bytes())
+    _line(page, 60, 240, "第二章 需求", 18)
+    _line(page, 60, 280, "需求描述消费者的购买意愿。", 11)
+    doc.set_toc([[1, "第一章 供给", 1], [1, "第二章 需求", 1]])
+    path = tmp_path / "dangling.pdf"
+    doc.save(str(path))
+
+    parsed = parse_pdf(path, ctx)
+    chapter_ids = {c.id for c in parsed.chapters}
+    assert [t.title for t in parsed.toc] == ["第一章 供给"]
+    assert all(t.chapterId in chapter_ids for t in parsed.toc)
+    assert all(f.chapterId in chapter_ids for f in parsed.figures)  # 图表归属同样不得悬空

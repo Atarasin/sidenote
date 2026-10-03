@@ -13,6 +13,7 @@ import type { ReaderHandle } from "./EpubReader";
 import type { AnchorRegistry } from "./anchors";
 import { type ItemGeometry, spanOffset, unionBox } from "./pdfLayout";
 import { groupItemsByParas } from "./textAlign";
+import { resolveTocTarget } from "./tocTarget";
 
 // workerPort 直接持有 worker 实例，绕开 module-worker 兼容性问题
 pdfjs.GlobalWorkerOptions.workerPort = new PdfjsWorker();
@@ -42,8 +43,23 @@ export default function PdfReader({
   const pendingPara = useRef<string | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [pageNo, setPageNo] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
   const [zoom, setZoom] = useState(1);
   const [renderError, setRenderError] = useState<string | null>(null);
+
+  // 页码输入框跟随实际页码（翻页/快捷键/跳转都同步）
+  useEffect(() => setPageInput(String(pageNo)), [pageNo]);
+
+  const commitPageInput = () => {
+    const parsed = Number.parseInt(pageInput, 10);
+    if (!Number.isFinite(parsed)) {
+      setPageInput(String(pageNo));
+      return;
+    }
+    const next = clampPage(parsed, numPages);
+    setPageInput(String(next));
+    setPageNo(next);
+  };
 
   // 加载文档
   // biome-ignore lint/correctness/useExhaustiveDependencies: 文档加载只随书籍实例重建
@@ -220,8 +236,9 @@ export default function PdfReader({
       const target = e.target as HTMLElement | null;
       if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
       if (e.key === "ArrowRight" || e.key === "PageDown")
-        setPageNo((n) => Math.min(n + 1, numPages));
-      else if (e.key === "ArrowLeft" || e.key === "PageUp") setPageNo((n) => Math.max(n - 1, 1));
+        setPageNo((n) => clampPage(n + 1, numPages));
+      else if (e.key === "ArrowLeft" || e.key === "PageUp")
+        setPageNo((n) => clampPage(n - 1, numPages));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -238,32 +255,31 @@ export default function PdfReader({
   }, []);
 
   useImperativeHandle(handleRef, () => ({
-    jumpTo(toc: TocItem) {
-      const paraById = (id?: string) =>
-        id ? doc.chapters.flatMap((c) => c.paras).find((p) => p.id === id) : undefined;
-      const target =
-        paraById(toc.paraId) ??
-        doc.chapters.find((c) => c.id === toc.chapterId)?.paras.find((p) => p.page != null);
-      if (target?.page == null) return;
-      const next = Math.min(Math.max(target.page + 1, 1), numPages || 1);
+    jumpTo(toc: TocItem): boolean {
+      const target = resolveTocTarget(doc, toc);
+      // 目标章节不存在（解析器已丢弃）或文档尚未就绪：返回 false，由 ReaderPage 提示，
+      // 不允许静默什么都不做（M0 缺陷 #14）
+      if (!target || numPages < 1) return false;
+      const next = clampPage(target.page + 1, numPages);
       if (next === pageNo) {
         // 同页跳转：直接滚动定位（渲染 effect 不会重跑）
-        const anchored = registry.get(target.id);
+        const anchored = registry.get(target.paraId);
         if (anchored) {
           anchored.el.scrollIntoView({ block: "center" });
           anchored.el.classList.add("anchor-flash");
           window.setTimeout(() => anchored.el.classList.remove("anchor-flash"), 2000);
         }
-        return;
+        return true;
       }
-      pendingPara.current = toc.paraId ?? target.id;
+      pendingPara.current = target.paraId;
       setPageNo(next);
+      return true;
     },
     next() {
-      setPageNo((n) => Math.min(n + 1, numPages));
+      setPageNo((n) => clampPage(n + 1, numPages));
     },
     prev() {
-      setPageNo((n) => Math.max(n - 1, 1));
+      setPageNo((n) => clampPage(n - 1, numPages));
     },
   }));
 
@@ -277,32 +293,74 @@ export default function PdfReader({
     );
   }
   return (
-    <div className="pdf-view flex h-full w-full flex-col items-center overflow-auto" ref={wrapRef}>
-      <div className="relative" style={{ margin: "12px 0" }}>
-        <canvas ref={canvasRef} className="block bg-white shadow-sm" />
-        <div ref={layerRef} className="pdf-text-layer absolute inset-0" />
+    <div className="pdf-view flex h-full w-full flex-col overflow-hidden">
+      {/* 滚动容器：缩放基准宽取这里（clientWidth 已扣除滚动条） */}
+      <div ref={wrapRef} className="flex min-h-0 w-full flex-1 flex-col items-center overflow-auto">
+        <div className="relative" style={{ margin: "12px 0" }}>
+          <canvas ref={canvasRef} className="block bg-white shadow-sm" />
+          <div ref={layerRef} className="pdf-text-layer absolute inset-0" />
+        </div>
       </div>
       {numPages > 0 && (
-        <div className="pb-4 text-xs text-gray-400">
-          {pageNo} / {numPages}
+        <footer className="flex shrink-0 flex-wrap items-center justify-center gap-2 border-t border-stone-200 bg-white/85 px-3 py-1.5 text-xs text-stone-500">
           <button
             type="button"
-            className="ml-3 rounded border border-gray-200 px-2 hover:bg-gray-50"
+            className="rounded border border-stone-200 px-2 py-0.5 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={() => setPageNo((n) => clampPage(n - 1, numPages))}
+            disabled={pageNo <= 1}
+            title="上一页（← / PageUp）"
+          >
+            ‹ 上一页
+          </button>
+          <span className="flex items-center gap-1 tabular-nums">
+            <input
+              className="w-10 rounded border border-stone-200 px-1 py-0.5 text-center tabular-nums"
+              value={pageInput}
+              onChange={(e) => setPageInput(e.target.value)}
+              onBlur={commitPageInput}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              aria-label="跳转到页码"
+            />
+            / {numPages}
+          </span>
+          <button
+            type="button"
+            className="rounded border border-stone-200 px-2 py-0.5 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-40"
+            onClick={() => setPageNo((n) => clampPage(n + 1, numPages))}
+            disabled={pageNo >= numPages}
+            title="下一页（→ / PageDown）"
+          >
+            下一页 ›
+          </button>
+          <span className="mx-1 h-3 w-px bg-stone-200" />
+          <button
+            type="button"
+            className="rounded border border-stone-200 px-2 py-0.5 hover:bg-stone-100"
             onClick={() => setZoom((z) => Math.max(0.5, z - 0.15))}
+            title="缩小"
           >
             −
           </button>
           <button
             type="button"
-            className="ml-1 rounded border border-gray-200 px-2 hover:bg-gray-50"
+            className="rounded border border-stone-200 px-2 py-0.5 hover:bg-stone-100"
             onClick={() => setZoom((z) => Math.min(3, z + 0.15))}
+            title="放大"
           >
             +
           </button>
-        </div>
+          <span className="ml-1 hidden text-stone-400 sm:inline">← → 翻页</span>
+        </footer>
       )}
     </div>
   );
+}
+
+/** 页码夹取：文档未就绪（numPages=0）时也不得把页码推成 0（渲染 effect 会直接跳过）。 */
+function clampPage(page: number, numPages: number): number {
+  return Math.min(Math.max(page, 1), Math.max(numPages, 1));
 }
 
 function chapterForPage(doc: BookDoc, page0: number): Chapter | null {

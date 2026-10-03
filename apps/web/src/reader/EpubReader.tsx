@@ -14,7 +14,8 @@ import { alignBlocksToParas } from "./textAlign";
 export const BLOCK_SELECTOR = "p,h1,h2,h3,h4,h5,h6,li,blockquote,pre,table";
 
 export interface ReaderHandle {
-  jumpTo(toc: TocItem): void;
+  /** 跳转是否落地：false 表示目标章节不存在（悬空目录项），调用方须给出可见提示 */
+  jumpTo(toc: TocItem): boolean;
   next(): void;
   prev(): void;
 }
@@ -177,14 +178,15 @@ export default function EpubReader({
   useImperativeHandle(handleRef, () => ({
     jumpTo(toc: TocItem) {
       const chapter = doc.chapters.find((c) => c.id === toc.chapterId);
-      if (!chapter?.href) return;
+      if (!chapter?.href) return false;
       const anchored = toc.paraId ? registry.get(toc.paraId) : undefined;
       if (anchored && anchored.chapterId === chapter.id) {
         scrollElIntoEpubPage(anchored.el);
-        return;
+        return true;
       }
       pendingPara.current = toc.paraId ?? null;
       void renditionRef.current?.display(chapter.href);
+      return true;
     },
     next() {
       void renditionRef.current?.next();
