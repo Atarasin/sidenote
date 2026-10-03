@@ -30,6 +30,8 @@ interface Props {
    * 契约：本 effect 仅随 bookId 重建，回调在首挂载时被闭包捕获——
    * 父组件必须传稳定引用（useCallback 且不依赖易变状态）。 */
   onLayoutChange?: () => void;
+  /** PDF 涂写层用的滚动容器引用；EPUB 分栏无滚动，仅为联合渲染器类型统一而占位 */
+  scrollHostRef?: RefObject<HTMLDivElement | null>;
 }
 
 function basename(href: string): string {

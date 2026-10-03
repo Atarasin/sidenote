@@ -26,6 +26,11 @@ interface Props {
   onChapterChange?: (chapter: Chapter | null) => void;
   /** 滚动/翻页/缩放后触发（M3 便签重定位，T3.3.1） */
   onLayoutChange?: () => void;
+  /**
+   * 书页滚动容器（wrapRef）的对开引用：涂写层覆盖在不滚动的 .book-page 上，
+   * 锚定内容的笔迹需要感知这里的滚动偏移与滚动事件（缺陷 16）。
+   */
+  scrollHostRef?: RefObject<HTMLDivElement | null>;
 }
 
 export default function PdfReader({
@@ -35,6 +40,7 @@ export default function PdfReader({
   handleRef,
   onChapterChange,
   onLayoutChange,
+  scrollHostRef,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -294,8 +300,14 @@ export default function PdfReader({
   }
   return (
     <div className="pdf-view flex h-full w-full flex-col overflow-hidden">
-      {/* 滚动容器：缩放基准宽取这里（clientWidth 已扣除滚动条） */}
-      <div ref={wrapRef} className="flex min-h-0 w-full flex-1 flex-col items-center overflow-auto">
+      {/* 滚动容器：缩放基准宽取这里（clientWidth 已扣除滚动条）；偏移同时暴露给涂写层 */}
+      <div
+        ref={(el) => {
+          wrapRef.current = el;
+          if (scrollHostRef) scrollHostRef.current = el;
+        }}
+        className="flex min-h-0 w-full flex-1 flex-col items-center overflow-auto"
+      >
         <div className="relative" style={{ margin: "12px 0" }}>
           <canvas ref={canvasRef} className="block bg-white shadow-sm" />
           <div ref={layerRef} className="pdf-text-layer absolute inset-0" />

@@ -65,6 +65,9 @@ export default function ReaderPage({ bookId }: Props) {
   const registryRef = useRef(new AnchorRegistry());
   const handleRef = useRef<ReaderHandle | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
+  // 书页内容的滚动容器（PdfReader wrapRef 挂载；EPUB 分栏无滚动保持 null）。
+  // 涂写层覆盖在不滚动的 .book-page 上，笔迹锚定内容全靠它感知滚动偏移（缺陷 16）
+  const scrollHostRef = useRef<HTMLDivElement | null>(null);
 
   // M3 状态
   const [mode, setMode] = useState<Mode>("reading");
@@ -493,6 +496,7 @@ export default function ReaderPage({ bookId }: Props) {
             active={mode === "annotating"}
             onSubmit={onScribbleSubmit}
             clearToken={clearToken}
+            scrollHostRef={scrollHostRef}
           />
         }
         marginNotes={
@@ -518,6 +522,7 @@ export default function ReaderPage({ bookId }: Props) {
           handleRef={handleRef}
           onChapterChange={setChapter}
           onLayoutChange={onLayoutChange}
+          scrollHostRef={scrollHostRef}
         />
       </ReaderShell>
 

@@ -5,6 +5,12 @@
  * - 圈选模式按住拖拽画圈，松开成一次圈选（拖拽幅度过小视为误触丢弃）。
  * - 圈旁单行附言气泡：留空直发或补一句话；Esc/点击圈外取消（该笔迹一并撤销）。
  * - 提交时由父组件做截图合成与意图解析（见 composeImage / ReaderPage）。
+ *
+ * 坐标系（缺陷 16）：PDF 的滚动发生在阅读器内层 overflow-auto 容器（wrapRef）里，
+ * 而本层覆盖在不滚动的 .book-page 上——笔迹按视口坐标存的话，滚轮一滚圈就漂离原文。
+ * 因此笔迹与气泡一律按「内容坐标」（视口坐标 + 滚动偏移）存，绘制/定位时减去当前
+ * 偏移，提交时换算回当时的视口坐标——composeRegionImage 与段落命中都按提交时视口
+ * 几何取值，契约不变。
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { STROKE_COLOR } from "./composeImage";
@@ -21,25 +27,45 @@ interface Props {
   onSubmit: (s: ScribbleSubmit) => void;
   /** 章节切换时由父组件递增，清空笔迹 */
   clearToken: number;
+  /**
+   * 书页内容的真实滚动容器（PDF 为 wrapRef；EPUB 分栏无滚动，不传即可）。
+   * 涂写层不在该容器的滚动子树内，笔迹锚定内容就必须显式感知它的偏移与滚动事件。
+   */
+  scrollHostRef?: React.RefObject<HTMLElement | null>;
 }
 
 interface Stroke {
   points: Point[];
 }
 
-export default function ScribbleLayer({ active, onSubmit, clearToken }: Props) {
+interface Pending {
+  points: Point[];
+  x: number;
+  y: number;
+  /** 气泡放圈上方（默认）；圈贴内容顶放不下时翻到圈下方 */
+  above: boolean;
+}
+
+export default function ScribbleLayer({ active, onSubmit, clearToken, scrollHostRef }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hostRef = useRef<HTMLElement | null>(null);
   const noteInputRef = useRef<HTMLInputElement>(null);
   const strokesRef = useRef<Stroke[]>([]);
   const drawingRef = useRef<Point[] | null>(null);
-  const [pending, setPending] = useState<{ points: Point[]; x: number; y: number } | null>(null);
+  const [pending, setPending] = useState<Pending | null>(null);
   const [note, setNote] = useState("");
+  // 内容滚动偏移的渲染镜像：滚动事件驱动，气泡跟随内容重定位
+  const [scrollOffset, setScrollOffset] = useState<Point>({ x: 0, y: 0 });
 
   // 宿主 = 本层外层容器（.book-page）：坐标与尺寸基准
   useEffect(() => {
     hostRef.current = canvasRef.current?.parentElement?.parentElement ?? null;
   }, []);
+
+  const offsets = useCallback((): Point => {
+    const sc = scrollHostRef?.current;
+    return sc ? { x: sc.scrollLeft, y: sc.scrollTop } : { x: 0, y: 0 };
+  }, [scrollHostRef]);
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -60,15 +86,30 @@ export default function ScribbleLayer({ active, onSubmit, clearToken }: Props) {
     ctx.lineWidth = 2;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
+    const o = offsets();
     const all = drawingRef.current
       ? [...strokesRef.current, { points: drawingRef.current }]
       : strokesRef.current;
     for (const s of all) {
       ctx.beginPath();
-      s.points.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+      s.points.forEach((p, i) =>
+        i === 0 ? ctx.moveTo(p.x - o.x, p.y - o.y) : ctx.lineTo(p.x - o.x, p.y - o.y),
+      );
       ctx.stroke();
     }
-  }, []);
+  }, [offsets]);
+
+  // 内容滚动 → 笔迹与气泡跟着内容走（重画 + 偏移镜像更新）
+  useEffect(() => {
+    const scroller = scrollHostRef?.current;
+    if (!scroller) return;
+    const onScroll = () => {
+      setScrollOffset({ x: scroller.scrollLeft, y: scroller.scrollTop });
+      redraw();
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    return () => scroller.removeEventListener("scroll", onScroll);
+  }, [scrollHostRef, redraw]);
 
   // 笔迹清空（章节切换/书切换）
   // biome-ignore lint/correctness/useExhaustiveDependencies: clearToken 是信号依赖——章节切换即清笔迹重画
@@ -96,10 +137,21 @@ export default function ScribbleLayer({ active, onSubmit, clearToken }: Props) {
     return () => ro.disconnect();
   }, [redraw]);
 
+  // 笔迹按内容坐标存：视口坐标 + 滚动偏移（EPUB 无滚动容器时偏移恒为 0）
   const localPoint = (e: React.PointerEvent): Point => {
     const host = hostRef.current;
     const r = host?.getBoundingClientRect();
-    return { x: e.clientX - (r?.left ?? 0), y: e.clientY - (r?.top ?? 0) };
+    const o = offsets();
+    return { x: e.clientX - (r?.left ?? 0) + o.x, y: e.clientY - (r?.top ?? 0) + o.y };
+  };
+
+  // 涂写层不在滚动链上，滚轮默认够不到书页内容：手动转发给滚动容器，
+  // 圈选模式与气泡打开期间滚动不中断（滚动后笔迹/气泡随内容重定位）
+  const forwardWheel = (e: React.WheelEvent) => {
+    const scroller = scrollHostRef?.current;
+    if (!scroller) return;
+    scroller.scrollTop += e.deltaY;
+    scroller.scrollLeft += e.deltaX;
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -128,8 +180,22 @@ export default function ScribbleLayer({ active, onSubmit, clearToken }: Props) {
     }
     strokesRef.current.push({ points: pts });
     const host = hostRef.current;
-    const sel = selectionRect(pts, 8, host?.clientWidth ?? 0, host?.clientHeight ?? 0);
-    setPending({ points: pts, x: sel?.x ?? pts[0].x, y: (sel?.y ?? pts[0].y) - 6 });
+    const o = offsets();
+    // 选区裁剪进内容坐标空间（外扩后的边界是「视口尺寸 + 滚动偏移」）
+    const sel = selectionRect(
+      pts,
+      8,
+      (host?.clientWidth ?? 0) + o.x,
+      (host?.clientHeight ?? 0) + o.y,
+    );
+    // 气泡默认放圈上方；圈贴着内容顶（上方放不下气泡）时翻到圈下方
+    const above = sel ? sel.y - o.y >= 56 : true;
+    setPending({
+      points: pts,
+      x: sel?.x ?? pts[0].x,
+      y: sel ? (above ? sel.y - 6 : sel.y + sel.height + 6) : pts[0].y,
+      above,
+    });
     redraw();
   };
 
@@ -148,10 +214,15 @@ export default function ScribbleLayer({ active, onSubmit, clearToken }: Props) {
 
   const submitPending = useCallback(() => {
     if (!pending) return;
-    onSubmit({ points: pending.points, note: note.trim() });
+    // 提交换算回「此刻视口」坐标：截图合成与段落命中都按提交时的视口几何取值
+    const o = offsets();
+    onSubmit({
+      points: pending.points.map((p) => ({ x: p.x - o.x, y: p.y - o.y })),
+      note: note.trim(),
+    });
     setPending(null);
     setNote("");
-  }, [pending, note, onSubmit]);
+  }, [pending, note, onSubmit, offsets]);
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
@@ -171,12 +242,23 @@ export default function ScribbleLayer({ active, onSubmit, clearToken }: Props) {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onWheel={forwardWheel}
       />
       {pending && (
-        <div className="absolute inset-0 z-20" onPointerDown={cancelPending}>
+        // 缺陷 17：遮罩必须显式 pointer-events-auto——外层容器是 pointer-events-none，
+        // 继承下来输入框/按钮点击全部穿透，气泡一开就「没反应」
+        <div
+          className="pointer-events-auto absolute inset-0 z-20"
+          onPointerDown={cancelPending}
+          onWheel={forwardWheel}
+        >
           <div
             className="absolute z-30 flex items-center gap-1 rounded-lg border border-red-200 bg-white p-1 shadow-lg"
-            style={{ left: pending.x, top: pending.y, transform: "translateY(-100%)" }}
+            style={{
+              left: pending.x - scrollOffset.x,
+              top: pending.y - scrollOffset.y,
+              ...(pending.above ? { transform: "translateY(-100%)" } : {}),
+            }}
             onPointerDown={(e) => e.stopPropagation()}
           >
             <input
